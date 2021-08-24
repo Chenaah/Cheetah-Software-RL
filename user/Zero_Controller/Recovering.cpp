@@ -71,46 +71,62 @@ Recovering::Recovering(){
     RunOpts = NULL;
 
     char* homeDir = getenv("HOME");
-    const char* saved_model_dir = "/actor_model_dis/"; 
+    const char* saved_model_dir = "/DAM/"; 
     char* saved_model_dir_full = new char[strlen(homeDir) + strlen(saved_model_dir) + 1 + 1];
     strcpy(saved_model_dir_full, homeDir);
     strcat(saved_model_dir_full, saved_model_dir);
-    const char* tags = "serve"; 
-    
-    int ntags = 1;
-    sess = TF_LoadSessionFromSavedModel(SessionOpts, RunOpts, saved_model_dir_full, &tags, ntags, graph, NULL, status);
-    
-    if(TF_GetCode(status) == TF_OK)
-        printf("TF_LoadSessionFromSavedModel OK\n");
-    else
-        printf("%s",TF_Message(status));
 
-    //****** Get input tensor
-   
-    input_op = TF_Output{TF_GraphOperationByName(graph, "serving_default_input_1"), 0};
-    if (input_op.oper == nullptr) {
-        std::cout << "ERROR: Failed TF_GraphOperationByName serving_default_input_1" << std::endl;
+    const char* checking_file = "saved_model.pb"; // only used for checking if RL agent is enabled
+    char* checking_file_path = new char[strlen(saved_model_dir_full) + strlen(checking_file) + 1 + 1];
+    strcpy(checking_file_path, saved_model_dir_full);
+    strcat(checking_file_path, checking_file);
+
+
+    std::ifstream model_exist(checking_file_path);
+    if (model_exist.good()){
+        std::cout << "TENSORFLOW MODEL FOUND! RL AGENT IS ENABLED. " << std::endl;
+        agent_enable = true;
+
+        const char* tags = "serve"; 
+        int ntags = 1;
+        sess = TF_LoadSessionFromSavedModel(SessionOpts, RunOpts, saved_model_dir_full, &tags, ntags, graph, NULL, status);
+        
+        if(TF_GetCode(status) == TF_OK)
+            printf("TF_LoadSessionFromSavedModel OK\n");
+        else
+            printf("%s",TF_Message(status));
+
+        //****** Get input tensor
+        input_op = TF_Output{TF_GraphOperationByName(graph, "serving_default_input_1"), 0};
+        if (input_op.oper == nullptr) {
+            std::cout << "ERROR: Failed TF_GraphOperationByName serving_default_input_1" << std::endl;
+        } else {
+            printf("TF_GraphOperationByName serving_default_input_1 is OK\n");
+        }
+        
+        //********* Get Output tensor
+        out_op = TF_Output{TF_GraphOperationByName(graph, "StatefulPartitionedCall"), 0};
+
+        if(out_op.oper == nullptr)
+            printf("ERROR: Failed TF_GraphOperationByName StatefulPartitionedCall\n");
+        else
+            printf("TF_GraphOperationByName StatefulPartitionedCall is OK\n");
+
+        //********* Allocate data for inputs & outputs
+
+        const std::vector<std::int64_t> input_dims = {1, s_dim};
+        std::vector<float> input_vals(s_dim, 0.5);
+        input_tensor = CreateTensor(TF_FLOAT, input_dims, input_vals);
+        printf("Allocated data ~ \n");
+
+        output_tensor = nullptr;
+
+
     } else {
-        printf("TF_GraphOperationByName serving_default_input_1 is OK\n");
+        agent_enable = false;
+        std::cout << "TENSORFLOW MODEL NOT FOUND! RL AGENT IS DISABLED. " << std::endl;
+
     }
-    
-    //********* Get Output tensor
-
-    out_op = TF_Output{TF_GraphOperationByName(graph, "StatefulPartitionedCall"), 0};
-
-    if(out_op.oper == nullptr)
-        printf("ERROR: Failed TF_GraphOperationByName StatefulPartitionedCall\n");
-    else
-        printf("TF_GraphOperationByName StatefulPartitionedCall is OK\n");
-
-    //********* Allocate data for inputs & outputs
-
-    const std::vector<std::int64_t> input_dims = {1, s_dim};
-    std::vector<float> input_vals(s_dim, 0.5);
-    input_tensor = CreateTensor(TF_FLOAT, input_dims, input_vals);
-    printf("Allocated data ~ \n");
-
-    output_tensor = nullptr;
 
     action.resize(a_dim);
     state.resize(s_dim);
@@ -120,17 +136,7 @@ Recovering::Recovering(){
       pos_impl[leg] << 0.f, 0.f, 0.f;
 
     #if DEBUG
-
-    // if(!lcm.good())
-    //     return;
-    // lcm.subscribe("state_estimator_bullet", &Recovering::receive_state_from_bullet, this);
-    // lcm.subscribe("leg_control_data_bullet", &Recovering::receive_leg_state_from_bullet, this);
-    // debug_info_stream << std::setprecision(3) << std::fixed;
-
-    
     socket.bind("tcp://*:5555");
-
-    
     #endif
 
     std::cout << std::setprecision(3) << std::fixed;
@@ -773,6 +779,9 @@ void Recovering::_Walk(const int & curr_iter){
         
         }
         _update_state();
+
+        if (curr_iter != 0 && !_done && curr_iter <= 10000)
+            _update_reward();
         
         // std::cout << "PITCH AFTER RESET:::::::::::::::::::: " <<  state[1] << std::endl;
         // pthread_t tid[1];
@@ -796,11 +805,8 @@ void Recovering::_Walk(const int & curr_iter){
                 }
             }
         } else
-            // action = {0, 0, 0, 0, 0, 0};
-            // DEBUG!!!
-            #if DEBUG
-            action = {1, 1, 1, 1, 1, 1};
-            #endif
+            action = {0, 0, 0, 0, 0, 0};
+
         
         #if DEBUG
         debug_info_stream << "AGENT ACTION: [" <<  action[0] << ", " <<  action[1] << ", " <<  action[2] << ", "<<  action[3] << ", "<<  action[4] << ", "<<  action[5]  << "] " << "\n";
@@ -977,7 +983,7 @@ void Recovering::_Walk(const int & curr_iter){
         normalised_abduct_left = initial_jpos[1][0] - (action_multiplier*action[2] + arm_pd_multiplier*param_d_buffered);
     }
     
-    std::cout << "[DEBUG] [I] pos_impl[0][1] = " << initial_jpos[0][1] << " + " << action_multiplier << " * " << action[1] << " + " << arm_pd_multiplier*param_c_buffered << " = " << initial_jpos[0][1] + action_multiplier*action[1] + arm_pd_multiplier*param_c_buffered << std::endl;
+    // std::cout << "[DEBUG] [I] pos_impl[0][1] = " << initial_jpos[0][1] << " + " << action_multiplier << " * " << action[1] << " + " << arm_pd_multiplier*param_c_buffered << " = " << initial_jpos[0][1] + action_multiplier*action[1] + arm_pd_multiplier*param_c_buffered << std::endl;
     
     pos_impl[0] << _Box(normalised_abduct_right, ad_right_min, ad_right_max), 
                    _Box(initial_jpos[0][1] + action_multiplier*action[1] + arm_pd_multiplier*param_c_buffered, -PI, 0), 
@@ -996,7 +1002,8 @@ void Recovering::_Walk(const int & curr_iter){
 
     old_sin_value = sin(param_b*curr_iter-PI/2);
 
-    _update_basic_leg_actions(curr_iter); 
+    if (gait != Gait::none)
+        _update_basic_leg_actions(curr_iter); 
     // this will rewrite pos_impl[2][1], pos_impl[2][2], pos_impl[3][1], and pos_impl[3][2]
 
     _process_leg_offsets(curr_iter);
@@ -1910,8 +1917,9 @@ void Recovering::_Finish(){
 }
 
 float Recovering::_Box(const float & num, const float & min, const float & max){
-    if (num > max) return max;
-    else if (num < min) return min;
+    reach_limit = false;
+    if (num > max) {reach_limit = true; return max;}
+    else if (num < min) {reach_limit = true; return min;}
     else return num;
 }
 
@@ -2113,6 +2121,17 @@ void Recovering::_process_remote_controller_signal(const int & curr_iter){
     //                                                     << std::endl;
 
 }
+
+void Recovering::_update_reward(){
+    if (reach_limit) limit_cost = 0.1;
+    else limit_cost = 0;
+    action_cost = 0.25 * std::max({fabs(action[0]), fabs(action[1]), fabs(action[2]), fabs(action[3])});
+    reward = _stateEstimator->getResult().position[1] - limit_cost + _stateEstimator->getResult().position[0] - action_cost + 0.5;
+    episode_return += reward;
+    std::cout << "[RETURN] REWARD: " << reward << "    RETURN: " << episode_return << std::endl;; 
+}
+
+
 
 #if DEBUG
 void Recovering::wait_for_simulation_state(){

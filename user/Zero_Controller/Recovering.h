@@ -12,10 +12,12 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <iomanip>
+#include <initializer_list>
+#include <fstream>
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
-#define DEBUG false
+#define DEBUG true
 
 #if DEBUG
 // FOR DEBUGING: 
@@ -108,6 +110,8 @@ class Recovering {
 
     float param_a = 0, param_b = 0;  // public for easiliy read from files
     std::vector<float> param_opt = std::vector<float>(9, 0);
+    enum class Gait {sine, rose, triangle, line, none};
+    Gait gait = Gait::triangle;  // changed to public varible for easily loading from files
 
     const float PI = 3.14159;
 
@@ -303,7 +307,6 @@ class Recovering {
     enum class ActionMode {partial, whole, residual, open_loop};
     enum class LegActionMode {none, parameter, parallel_offset, hips_offset, knees_offset, hips_knees_offset};
     enum class StateMode {h_body_arm, h_body_arm_p, body_arm, body_arm_p, body_arm_leg_full, body_arm_leg_full_filtered, body_arm_leg_full_p};
-    enum class Gait {sine, rose, triangle, line};
     int agent_ver = 3;
     float pitch_ref = 0;
     float old_sin_value = 0;
@@ -333,16 +336,25 @@ class Recovering {
     float progressing_agent_factor = 0;
     std::vector<std::vector<float>> body_state_buffer;
     std::vector<float> body_state_sum = std::vector<float>(6, 0);
-    
+
+    // reward calculator
+    float reward = 0.0;
+    float episode_return = 0.0;
+    float limit_cost = 0.0;
+    float action_cost = 0.0;
+    bool reach_limit = false;
+    void _update_reward();
+
+    bool agent_enable = false; // determined by whether the model exists
+
     // #if !DEBUG
-   // Environment parameters
+    // Environment parameters
     const bool walk_enable = true;
-    const bool agent_enable = true;
-    const float agent_factor = 0.0; // 0.01;
+    const float agent_factor = 1.0;
     const ActionMode action_mode = ActionMode::residual;
     const LegActionMode leg_action_mode = LegActionMode::hips_offset;
     const StateMode state_mode = StateMode::body_arm_leg_full;
-    const Gait gait = Gait::triangle;
+    // const Gait gait = Gait::triangle;  // changed to public varible for easily loading from files
     const bool arm_pd_control = true;
     const bool fast_error_update = true;
     const float action_multiplier = 0.01;

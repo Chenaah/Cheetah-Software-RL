@@ -25,6 +25,7 @@ void Training_Controller::runController(){
   //*_done = recovering._done;
   // bool TEST_ONLY_ON_SIM = true;
   //*_finishReset = true;
+
   if (this->_firstrun){
     if (guard.initial_jpos_safe()){
       guard.global_safe = true;
@@ -46,7 +47,7 @@ void Training_Controller::runController(){
     char* walking_conf_dir_full = new char[strlen(homeDir) + strlen(walk_conf) + 1 + 1];
     strcpy(walking_conf_dir_full, homeDir);
     strcat(walking_conf_dir_full, walk_conf);
-    const char* param_conf = "/actor_model_dis/param_opt.conf"; 
+    const char* param_conf = "/DAM/param_opt.conf"; 
     char* param_conf_dir_full = new char[strlen(homeDir) + strlen(param_conf) + 1 + 1];
     strcpy(param_conf_dir_full, homeDir);
     strcat(param_conf_dir_full, param_conf);
@@ -117,13 +118,36 @@ void Training_Controller::runController(){
     // these two variables would be overwritten by param_opt now
 
     std::ifstream param_config(param_conf_dir_full);
-    std::vector<float> data4;
-    while(std::getline(param_config, temp))
-        data4.push_back(std::stof(temp));
+    std::vector<float> param_opt;
+    std::string gait;
+    std::string info;
+    int line_counter = 0;
+    while(std::getline(param_config, temp)){
+      if (line_counter == 0)
+        gait = temp;
+      else if (line_counter >= 1 && line_counter <= 9)
+        param_opt.push_back(std::stof(temp));
+      else
+        info = temp;
+      line_counter += 1;
+    }
+
+    if (gait == "line") recovering.gait = Recovering::Gait::line;
+    else if (gait == "sine") recovering.gait = Recovering::Gait::sine;
+    else if (gait == "rose") recovering.gait = Recovering::Gait::rose;
+    else if (gait == "triangle") recovering.gait = Recovering::Gait::triangle;
+    else if (gait == "none") recovering.gait = Recovering::Gait::none;
+    else std::cout << "WHAT THE F**K IS " << gait << " ???" << std::endl;
 
     for (unsigned int i=0; i<recovering.param_opt.size(); i++)
-      recovering.param_opt[i] = data4[i];
+      recovering.param_opt[i] = param_opt[i];
 
+    std::cout << "[LOADER] SUCCESSFULLY LOADED PARAMETERS FOR GAIT " << gait << " !" << std::endl;
+    std::cout << "[LOADER] PARAMETERS: [" ;
+    for (auto & p : param_opt)
+      std::cout << p << "  ";
+    std::cout << "]" << std::endl;
+    std::cout << "[LOADER] " << info << std::endl;
   }
 
   if (guard.global_safe){ //guard.jpos_safe() && guard.global_safe
