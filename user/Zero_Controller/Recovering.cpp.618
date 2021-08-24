@@ -1,0 +1,867 @@
+#include <Recovering.h>
+// #include <pybind11/embed.h>
+// #include <pybind11/stl.h>
+// namespace py = pybind11;
+
+
+Recovering::Recovering(LegController<float>* legController, StateEstimatorContainer<float>* stateEstimator){
+
+    _legController = legController;
+    _stateEstimator = stateEstimator;
+}
+
+Recovering::Recovering(){
+    // goal configuration
+    // Folding
+    fold_jpos[0] << -0.0f, -1.4f, 2.45f;  // the third joint shouldn't be greater than 2.5 after adding the thing
+    fold_jpos[1] << 0.0f, -1.4f, 2.45f;
+    fold_jpos[2] << -0.0f, -1.4f, 2.45f;
+    fold_jpos[3] << 0.0f, -1.4f, 2.45f;
+    // Stand Up
+    for(size_t i(0); i<4; ++i){
+        //stand_jpos[i] << 0.f, -.9425f, 1.885f;
+        stand_jpos[i] << 0.f, -.8f, 1.6f;
+    }
+    // Rolling
+    rolling_jpos[0] << 1.5f, -1.6f, 2.77f;
+    rolling_jpos[1] << 1.3f, -3.1f, 2.77f;
+    rolling_jpos[2] << 1.5f, -1.6f, 2.77f;
+    rolling_jpos[3] << 1.3f, -3.1f, 2.77f;
+
+    f_ff << 0.f, 0.f, -25.f;
+    zero_vec3 << 0.f, 0.f, -0.f;
+
+    
+    // agent = py::module::import("Agents").attr("cmaAgent")();
+    // std::cout << "PYTHON OBJECT INITIALISATION TEST PASSED" << std::endl;
+    // agent.attr("tell")(1.1f, true);
+    // std::cout << "TELL MODULE TEST PASSED" << std::endl;
+    // guess = agent.attr("ask")();
+    // std::cout << "ASK MODULE TEST PASSED" << std::endl;
+    
+    // agent.attr("tell")(cost, firstIter);
+    // guess = agent.attr("ask")();
+    // std::cout << "TEST NO.1 " << std::endl;
+    // py::initialize_interpreter();
+    // py::module::import("sys").attr("argv").attr("append")("");
+    // agent = py::module::import("Agents").attr("boAgent")();
+    // std::cout << "TEST NO.2 " << std::endl;
+    // py::object agent000 = py::module::import("Agents").attr("boAgent0")();
+    // std::cout << "TEST NO.3 " << std::endl;
+    // agent000.attr("tell")(1.1f, true);
+    // std::cout << "TEST NO.4 " << std::endl;
+    // py::list guess000 = agent000.attr("ask")();
+    // std::cout << "TEST NO.5 " << std::endl;
+
+}
+
+void Recovering::runtest() {
+
+    // std::cout << "TESTING!! PHASE: "<< _phase << "STEPS: " << _state_iter << std::endl;
+    // _done = true;
+    // testSmoothControl(_state_iter - _motion_start_iter);
+    // testControlSignal();
+    // _phase = 111;
+    // std::cout << "A FUCKING NEW RUN IS STARTED! " << std::endl;
+    body_height = _stateEstimator->getResult().position[2];
+    // std::cout << "HEIGHT: "<< body_height << std::endl;
+
+    // if (!isSafe()){
+    //   _phase = -1;
+    //   std::cout << "SAFE CHECK FAIL! " << std::endl;
+    // }
+
+    switch(_phase){
+      case -1:
+          _Passive();
+          break;
+      case 0:
+          _done = false;
+          _FoldLegs(_state_iter - _motion_start_iter);  // _motion_start_iter = _state_iter + 1;
+          break;
+      case 1:
+          _JustStandUp(_state_iter - _motion_start_iter);
+          break;
+      case 2:
+          _Prepare(_state_iter - _motion_start_iter);
+          break;
+      case 3:
+          _FrontLegsActions(_state_iter - _motion_start_iter);
+          _RearLegsActions(_state_iter - _motion_start_iter);
+          break;
+      case 4:
+          _MoveHands(_state_iter - _motion_start_iter);
+          break;
+      case 5:
+          _Finish();
+          break;
+    }
+
+    ++_state_iter;
+}
+
+void Recovering::recover(){
+
+    this->begin();
+}
+
+
+void Recovering::begin(){
+
+    // initial configuration, position
+    for(size_t i(0); i < 4; ++i) {
+        initial_jpos[i] = _legController->datas[i].q;
+    }
+    body_height = this->_stateEstimator->getResult().position[2];
+    max_body_height = this->_stateEstimator->getResult().position[2];
+
+    _flag = FoldLegs;
+    if( !_UpsideDown() ) { // Proper orientation
+    if (  (0.2 < body_height) && (body_height < 0.45) ){
+        printf("[Recovery Balance] body height is %f; Stand Up \n", body_height);
+        _flag = StandUp;
+    }else{
+        printf("[Recovery Balance] body height is %f; Folding legs \n", body_height);
+    }
+    }else{
+        printf("[Recovery Balance] UpsideDown (%d) \n", _UpsideDown() );
+    }
+    _motion_start_iter = 0;
+
+    
+    // py::object test_sys = py::module::import("sys");
+    // std::cout << "!!!!!!!!!!!   SYS.PATH FROM PYTHON :" <<  test_sys.attr("path")();
+    // py::list sys_list = test_sys.attr("path");
+    // print_list(sys_list);
+}
+
+
+bool Recovering::_UpsideDown(){
+    if(this->_stateEstimator->getResult().rBody(2,2) < 0){
+        return true;
+    }
+    return false;
+}
+
+void Recovering::run() {
+
+    // std::cout << "RECOVERING!! FLAG: " << _flag << "  STEPS: " << _state_iter << std::endl;
+    // this->guess = agent.attr("ask")();
+
+  switch(_flag){
+    case StandUp:
+      _StandUp(_state_iter - _motion_start_iter);
+      break;
+    case FoldLegs:
+      _FoldLegs(_state_iter - _motion_start_iter);
+      break;
+    case RollOver:
+      _RollOver(_state_iter - _motion_start_iter);
+      break;
+  }
+
+ ++_state_iter;
+}
+
+void Recovering::_SetJPosInterPts(
+    const size_t & curr_iter, size_t max_iter, int leg, 
+    const Vec3<float> & ini, const Vec3<float> & fin){
+
+    float a(0.f);
+    float b(1.f);
+
+    // if we're done interpolating
+    if(curr_iter <= max_iter) {
+      b = (float)curr_iter/(float)max_iter;
+      a = 1.f - b;
+    }
+
+    // compute setpoints
+    Vec3<float> inter_pos = a * ini + b * fin;
+
+    // do control
+    this->jointPDControl(leg, inter_pos, zero_vec3);
+
+    //if(curr_iter == 0){ 
+      //printf("flag:%d, curr iter: %lu, state iter: %llu, motion start iter: %d\n", 
+        //_flag, curr_iter, _state_iter, _motion_start_iter); 
+      //printf("inter pos: %f, %f, %f\n", inter_pos[0], inter_pos[1], inter_pos[2]);
+    //}
+    //if(curr_iter == max_iter){ 
+      //printf("flag:%d, curr iter: %lu, state iter: %llu, motion start iter: %d\n", 
+        //_flag, curr_iter, _state_iter, _motion_start_iter); 
+      //printf("inter pos: %f, %f, %f\n", inter_pos[0], inter_pos[1], inter_pos[2]);
+    //}
+}
+void Recovering::jointPDControl(
+    int leg, Vec3<float> qDes, Vec3<float> qdDes) {
+
+    kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+    kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+
+    this->_legController->commands[leg].kpJoint = kpMat;
+    this->_legController->commands[leg].kdJoint = kdMat;
+
+    // if (qDes[0]!=0){
+    //    std::cout << "ACTIONS SENT TO _legController : " << qDes[0] << ", "<< qDes[1]<<", "<< qDes[2] <<std::endl;
+
+    // }
+    this->_legController->commands[leg].qDes = qDes;
+    this->_legController->commands[leg].qdDes = qdDes;
+}
+
+void Recovering::_RollOver(const int & curr_iter){
+
+    // std::cout << "_RollOver IS CALLED ! " << std::endl;
+
+  for(size_t i(0); i<4; ++i){
+    _SetJPosInterPts(curr_iter, rollover_ramp_iter, i, 
+        initial_jpos[i], rolling_jpos[i]);
+  }
+
+  if(curr_iter > rollover_ramp_iter + rollover_settle_iter){
+    _flag = FoldLegs;
+    for(size_t i(0); i<4; ++i) initial_jpos[i] = rolling_jpos[i];
+    _motion_start_iter = _state_iter+1;
+  }
+}
+
+void Recovering::_StandUp(const int & curr_iter){
+
+  // std::cout << "_StandUp IS CALLED ! " << std::endl;
+
+
+  body_height = this->_stateEstimator->getResult().position[2];
+  
+  bool something_wrong(false);
+
+  if( _UpsideDown() || (body_height < 0.1 ) ) { 
+    something_wrong = true;
+  }
+
+  if( (curr_iter > floor(standup_ramp_iter*0.7) ) && something_wrong){
+    // If body height is too low because of some reason 
+    // even after the stand up motion is almost over 
+    // (Can happen when E-Stop is engaged in the middle of Other state)
+    for(size_t i(0); i < 4; ++i) {
+      initial_jpos[i] = this->_legController->datas[i].q;
+    }
+    _flag = FoldLegs;
+    _motion_start_iter = _state_iter+1;
+
+    printf("[Recovery Balance - Warning] body height is still too low (%f) or UpsideDown (%d); Folding legs \n", 
+        body_height, _UpsideDown() );
+
+  }else{
+    for(size_t leg(0); leg<4; ++leg){
+      _SetJPosInterPts(curr_iter, standup_ramp_iter, 
+          leg, initial_jpos[leg], stand_jpos[leg]);
+    }
+  }
+  // feed forward mass of robot.
+  //for(int i = 0; i < 4; i++)
+  //this->_data->_legController->commands[i].forceFeedForward = f_ff;
+  //Vec4<T> se_contactState(0.,0.,0.,0.);
+  Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
+  this->_stateEstimator->setContactPhase(se_contactState);
+
+}
+
+void Recovering::testControlSignal() {
+
+    Vec3<float> qDes; Vec3<float> qdDes;
+
+    kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+    kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+    qDes << 0,0,0;
+    qdDes << 0,0,0;
+
+    for(int leg=0; leg<4; leg++){
+      this->_legController->commands[leg].kpJoint = kpMat;
+      this->_legController->commands[leg].kdJoint = kdMat;
+
+      std::cout << "ACTIONS SENT TO _legController : " << qDes[0] << ", "<< qDes[1]<<", "<< qDes[2] <<std::endl;
+      this->_legController->commands[leg].qDes = qDes;
+      this->_legController->commands[leg].qdDes = qdDes;
+
+    }
+    
+}
+
+void Recovering::testSmoothControl(const int & curr_iter) {
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i) {
+        initial_jpos[i] = this->_legController->datas[i].q; 
+        }
+      std::cout<< "STAND UP INITIALISATION DONE!" << curr_iter <<std::endl;
+    }
+    for(size_t i(0); i<4; ++i){
+        //stand_jpos[i] << 0.f, -.9425f, 1.885f;
+        stand_jpos[i] << 0.f, 0.f, 0.f;
+        // initial_jpos[i] << 1.52302f, -0.79457f, 1.59995f; //1.52302, -0.79457, 1.59995
+        initial_jpos[i] << 0.f, 0.f, 0.f;
+    }
+    Vec3<float> inter_pos;
+    inter_pos<< 0,0,0;
+    for(size_t leg(0); leg<4; ++leg){
+      this->jointPDControl(leg, inter_pos, zero_vec3);
+    }
+    // for(size_t leg(0); leg<4; ++leg){
+
+    //   float a(0.f);
+    //   float b(1.f);
+
+    //   if(curr_iter <= standup_ramp_iter) {
+    //     b = (float)curr_iter/(float)standup_ramp_iter;
+    //     a = 1.f - b;
+    //   }
+    //   // compute setpoints
+    //   inter_pos = a * initial_jpos[leg] + b * stand_jpos[leg];
+    //   inter_pos<< 0,0,0;
+
+
+    //   this->jointPDControl(leg, inter_pos, zero_vec3);
+
+    // }       
+    
+}
+
+void Recovering::_JustStandUp(const int & curr_iter){
+
+    // std::cout<< "STAND UP STEP: NO." << curr_iter <<std::endl;
+    // std::cout<< "[1] STAND UP INI: " << initial_jpos[0][0] <<", "<< initial_jpos[0][1] <<", "<<  initial_jpos[0][2] << std::endl;
+    // std::cout<< "[2] ]NOW: " << this->_legController->datas[0].q[0] <<", "<< this->_legController->datas[0].q[1] <<", "<<  this->_legController->datas[0].q[2] << std::endl;
+
+    // std::cout<< "[3] STAND UP FIN: " << stand_jpos[0][0] <<", "<< stand_jpos[0][1] << ", "<< stand_jpos[0][2] << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i) {
+        initial_jpos[i] = this->_legController->datas[i].q;
+        }
+      // std::cout<< "STAND UP INITIALISATION DONE!" << curr_iter <<std::endl;
+    }
+
+    for(size_t leg(0); leg<4; ++leg){
+        _SetJPosInterPts(curr_iter, standup_ramp_iter, 
+                         leg, initial_jpos[leg], stand_jpos[leg]);
+    }       
+    // feed forward mass of robot.
+    //for(int i = 0; i < 4; i++)
+    //this->_data->_legController->commands[i].forceFeedForward = f_ff;
+    //Vec4<T> se_contactState(0.,0.,0.,0.);
+    Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
+    this->_stateEstimator->setContactPhase(se_contactState);
+
+    if(curr_iter >= standup_ramp_iter+300){
+        std::cout<< "====================== STAND UP FINISHED! ======================" << curr_iter <<std::endl;
+         _phase = 2;
+        // _phase = 0; // JUST FOR TEST
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_FoldLegs(const int & curr_iter){
+  if (curr_iter==0){
+    for(size_t i(0); i < 4; ++i) {
+      initial_jpos[i] = this->_legController->datas[i].q;
+      
+    }
+    // std::cout<< "====================== FOLD LEG BEGINS! ======================" << curr_iter <<std::endl;
+
+    // t_start = std::chrono::high_resolution_clock::now();
+
+
+   
+  }
+
+  // t_end = std::chrono::high_resolution_clock::now();
+  // double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+  // std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << std::endl;
+  // t_start = t_end;      // 2ms !
+
+
+
+
+  // if (curr_iter % 40 == 0){
+
+  //   for (int j=0; j<3; j++){
+  //       std::cout << "JOINT " << j << " : " ;
+  //       for (int l=0; l<4; l++){
+  //           std::cout << _legController->datas[l].q[j] << ", ";
+  //       }
+  //       std::cout << std::endl;
+  //     }
+
+  //     std::cout << "THE PITCH IS " << _stateEstimator->getResult().rpy[1]  << std::endl;
+  //     std::cout << "THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
+  //     Eigen::Quaterniond _orientation(_stateEstimator->getResult().orientation[0], _stateEstimator->getResult().orientation[1], _stateEstimator->getResult().orientation[2], _stateEstimator->getResult().orientation[3]);
+
+  //     Eigen::Vector3d euler = _orientation.matrix().eulerAngles(2,1,0);
+  //     std::cout << "THE EULER ANGLES ARE " << euler.x() << ", " << euler.y() << ", " << euler.z() << std::endl;
+
+  //     std::cout << "THE OMEGA IS " << _stateEstimator->getResult().omegaBody[0] << ", "<< _stateEstimator->getResult().omegaBody[1]<< ", "<< _stateEstimator->getResult().omegaBody[2]<< std::endl;
+
+
+  // }
+
+  
+
+  // return;
+
+
+
+  // std::cout << "_FoldLegs IS CALLED ! " << std::endl;
+
+  for(size_t i(0); i<4; ++i){
+    _SetJPosInterPts(curr_iter, fold_ramp_iter, i, 
+        initial_jpos[i], fold_jpos[i]);
+  }
+  if(curr_iter >= fold_ramp_iter + fold_settle_iter){
+    if(_UpsideDown()){
+      _flag = RollOver;
+      for(size_t i(0); i<4; ++i) initial_jpos[i] = fold_jpos[i];
+    }else{
+      _flag = StandUp;
+      for(size_t i(0); i<4; ++i) initial_jpos[i] = fold_jpos[i];
+    }
+    _phase = 1;
+    _motion_start_iter = _state_iter + 1;
+  }
+}
+
+
+void Recovering::_Prepare(const int & curr_iter){
+
+    // std::cout << "PREPARE STEP:  " << curr_iter << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i) {
+        initial_jpos[i] = this->_legController->datas[i].q;
+        }
+    }
+
+    prepare_jpos[0] << -0.0f, -1.4f, 2.45f;  // this can be 2.7
+    prepare_jpos[1] << 0.0f, -1.4f, 2.45f;  // this can be 2.7
+    prepare_jpos[2] << -0.0f, -1.4f, 2.45f;
+    prepare_jpos[3] << 0.0f, -1.4f, 2.45f;
+
+    if(curr_iter < fold_ramp_iter + 400){
+      for(size_t i(0); i<4; ++i){
+          _SetJPosInterPts(curr_iter, fold_ramp_iter, i, 
+          initial_jpos[i], prepare_jpos[i]);
+      }
+    }
+
+    if(curr_iter >= fold_ramp_iter + 400){
+        _phase = 3;
+        for(size_t i(0); i<4; ++i){
+          this->jointPDControl(i, prepare_jpos[i], zero_vec3);
+        }
+        _motion_start_iter = _state_iter + 1;
+    }
+}
+
+void Recovering::_FrontLegsActions(const int & curr_iter){
+
+    // std::cout << "TRY TO JUMP !!!! 0.0.6  " << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i) {
+        initial_jpos[i] = this->_legController->datas[i].q;
+        }
+    }
+
+    // int length = front_factor*90.5; //80<x<100, around 90, 80<89<89.5<x<90<100
+    for(size_t i(0); i<2; ++i){
+        front_jpos[i] << 0.f, -.8*0.96, 1.6*0.96;  //  FACTOR BETWEEN 0.7 AND 1  ---->   BETWEEN 1 AND 0.9
+    }
+
+    // if(_stateEstimator->getResult().rpy[1] < -1.3 && curr_iter > front_length){
+    //     // std::cout << "TRY TO KEEP BALANCE !!!! 0.0.6  " << std::endl;
+
+    //     for(size_t i(0); i<2; ++i){
+    //         initial_jpos[i] << 0.f, -.8*0.96, 1.6*0.96; 
+    //         front_jpos[i] << 0.f, -1.6, 1.6*0.96;
+    //     }
+
+    //     front_length *= 2;
+
+
+    // }
+
+    if(curr_iter > front_length){  // AFTER THE REAR LEGS ARE DONE: rear_ramp + back_length2   && fabs(pitch) > 0.1
+        // std::cout << "NOW THE PITCH IS " << fabs(pitch) <<  std::endl;
+
+
+        Eigen::Quaterniond _orientation(_stateEstimator->getResult().orientation[0], _stateEstimator->getResult().orientation[1], _stateEstimator->getResult().orientation[2], _stateEstimator->getResult().orientation[3]);
+        // Eigen::Vector3d euler = _orientation.toRotationMatrix().eulerAngles(2,1,0);
+        // pitch = euler.y();
+        pitch = _toPitch(_orientation);
+        std::vector<double> rpy = _toRPY(_orientation);
+
+        
+        w_pitch = _stateEstimator->getResult().omegaBody[1];
+        w_pitch_buffer.push_back(w_pitch);
+        pitch_sum += w_pitch;
+        if (w_pitch_buffer.size() > 11){
+            pitch_sum -= w_pitch_buffer[0];
+            w_pitch_buffer.erase(w_pitch_buffer.begin());
+        } 
+        w_pitch = pitch_sum / w_pitch_buffer.size();
+
+        for(size_t i(0); i < 4; ++i) {
+            curr_jpos[i] = this->_legController->datas[i].q;
+        }
+
+        if (curr_iter==0) {
+            w_pitch_old = w_pitch;
+            theta1_delta_old = curr_jpos[0][1];
+        }
+
+        tau = 0.5*(this->_legController->datas[0].tauEstimate[1] + this->_legController->datas[1].tauEstimate[1]);
+
+        acc_pitch = ((w_pitch - w_pitch_old) / 0.002 + 1.0*tau)*fabs(-3.2/2.0 - pitch)/1.5;
+        // pitch_eval = pitch;
+        // pitch_error = - 1.55 - pitch;
+        double t = std::fabs(w_pitch / acc_pitch);
+
+        float step_size = 0.2;
+
+        std::cout << "PITCH " << pitch << " W_PITCH " << w_pitch << " ACC_PITCH " << acc_pitch << " THETA1_DELTA_OLD " << theta1_delta_old << " TAU " << tau << std::endl;
+        std::cout << "( THE QUATERNIOND IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << ")" << std::endl;
+        std::cout << "THE CURRENT HIP ANGLE IS " << curr_jpos[0][1] <<  ", KNEE ANGLE IS "<< curr_jpos[0][2] << std::endl;
+
+        if (w_pitch > 0 && acc_pitch > 0 && std::fabs(w_pitch) > 0.01){
+            // FALLING FORWARD
+            Vec3<float> feedback_pos;
+
+            theta1 = std::max(-3.14, curr_jpos[0][1] - std::fabs(w_pitch)*3);
+            theta2 = curr_jpos[0][2];
+
+            float KW = 1;
+            if (std::fabs(w_pitch)<0.2)
+                KW = std::fabs(w_pitch);
+
+            theta1_delta = (((theta1) - curr_jpos[0][1]) / std::max(std::fabs(curr_jpos[0][1] - (theta1)), 0.001))*step_size_case1 ;
+            theta1_act = curr_jpos[0][1] + theta1_delta*step_size*KW ;
+            // theta2 = curr_jpos[0][2] + (((theta2) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (-3.14)), 0.001))*step_size ;
+            // if (curr_jpos[0][1] < -2.5) theta2 = curr_jpos[0][2] + (((0) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (0)), 0.001f))*step_size*5 ;
+            theta2 = -3.1415/2*sin(theta1_act);
+
+            feedback_pos << 0.f, _Box(theta1_act, -3.14, 0), _Box(theta2, 0, 2.45); 
+            // feedback_pos << 0.f, curr_jpos[0][1] + xxx, curr_jpos[0][2] + xxx; 
+            for(size_t leg(0); leg<2; ++leg){
+                this->jointPDControl(leg, feedback_pos, zero_vec3);
+            }
+            std::cout << "CASE 1 ! THE ROBOT IS FALLING FORWARD !" << " THETA1 (ACT) " << theta1 << " ("  << theta1_act << ") THETA2 " << theta2  << std::endl;
+
+
+        } else if (w_pitch < 0 && acc_pitch < 0 && std::fabs(w_pitch) > 0.01 && pitch < -1.0){
+            // FALLING BACKWARD
+            Vec3<float> feedback_pos;
+
+            theta1 = std::min(0.0, curr_jpos[0][1] + std::fabs(w_pitch)*3);
+            theta2 = curr_jpos[0][2];
+            float KW = 1;
+            if (std::fabs(w_pitch)<0.2)
+                KW = std::fabs(w_pitch);
+
+            theta1_delta = (((theta1) - curr_jpos[0][1]) / std::max(std::fabs(curr_jpos[0][1] - (theta1)), 0.001))*step_size_case2;
+            theta1_act = curr_jpos[0][1] + theta1_delta*step_size*KW ;
+            // theta2 = curr_jpos[0][2] + (((0) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (-3.14)), 0.001))*step_size ;
+            // if (curr_jpos[0][1] > 2.5-3.14) theta2 = curr_jpos[0][2] + (((0) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (0)), 0.001f))*step_size*5 ;
+            theta2 = -3.1415/2*sin(theta1_act);
+
+            feedback_pos << 0.f, _Box(theta1_act, -3.14, 0), _Box(theta2, 0, 2.45); 
+            // feedback_pos << 0.f, curr_jpos[0][1] + xxx, curr_jpos[0][2] + xxx; 
+            for(size_t leg(0); leg<2; ++leg){
+                this->jointPDControl(leg, feedback_pos, zero_vec3);
+            }
+            std::cout << "CASE 2 ! THE ROBOT IS FALLING BACKWARD !" << " THETA1 (ACT) " << theta1 << " ("  << theta1_act << ") THETA2 " << theta2 << std::endl;
+
+
+        } else if ((w_pitch > 0 && acc_pitch < 0) || (w_pitch < 0 && acc_pitch > 0)){
+            pitch_error = (-3.2/2.0 - pitch) - (0.5*w_pitch*t);
+            // theta1 = -1.6 + pitch_error * Hand_Kp; // /std::cos(pitch-theta1)
+            // theta2 = 3.14159/2 + 2*pitch - 2*theta1;
+
+            // theta1_act = curr_jpos[0][1] + (((theta1) - curr_jpos[0][1]) / std::max(std::fabs(curr_jpos[0][1] - (theta1)), 0.001))*step_size ;
+            // theta1_delta = (((theta1) - curr_jpos[0][1]) / std::max(std::fabs(curr_jpos[0][1] - (theta1)), 0.001))*step_size;
+            // theta2_act = curr_jpos[0][2] + (((theta2) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (theta2)), 0.001))*step_size ;
+
+            theta1_delta = pitch_error*0.1;
+            theta1 = curr_jpos[0][1] + theta1_delta;
+            theta1_act = theta1;
+            theta2 = 3.14159/2 + 2*pitch - 2*theta1;
+            theta2_act = curr_jpos[0][2] + (((theta2) - curr_jpos[0][2]) / std::max(std::fabs(curr_jpos[0][2] - (theta2)), 0.001))*step_size_case3 ;
+
+            Vec3<float> feedback_pos;
+            feedback_pos << 0.f, _Box(theta1_act, -3.14, 0), _Box(theta2_act, 0, 2.45); 
+            // feedback_pos << 0.f, curr_jpos[0][1] + xxx, curr_jpos[0][2] + xxx; 
+            for(size_t leg(0); leg<2; ++leg){
+                this->jointPDControl(leg, feedback_pos, zero_vec3);
+            }
+            std::cout << "CASE 3 ! PITCH_ERROR " << pitch_error << " T " << t << " THETA1 (ACT) " << theta1 << " ("  << theta1_act << ") THETA2 (ACT) " << theta2  << " ("  << theta2_act << ") " << std::endl;
+
+
+        // } else if (w_pitch < 0 && acc_pitch > 0){
+
+        } else {
+            std::cout << "CASE 4 ! NOTHING I CAN DO ..." << std::endl;
+            for(size_t leg(0); leg<2; ++leg){
+                this->jointPDControl(leg, curr_jpos[0], zero_vec3);
+            }
+        }
+        std::cout << std::endl;
+
+
+        theta1_delta_old = theta1_delta;
+        w_pitch_old = w_pitch;
+        // std::cout << "THE EULER ANGLES ARE " << euler.x() << ", " << euler.y() << ", " << euler.z() << std::endl;
+        
+
+    } else {
+
+        for(size_t leg(0); leg<2; ++leg){
+          _Step(curr_iter, front_length, 
+              leg, initial_jpos[leg], front_jpos[leg]);
+        }
+    }
+
+
+    
+
+
+    Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
+    // this->_stateEstimator->setContactPhase(se_contactState);
+
+    // body_height = _stateEstimator->getResult().position[2];
+    // float v_curr =_stateEstimator->getResult().vBody.squaredNorm();
+    // if(body_height>max_body_height){
+    //     max_body_height = body_height;
+    //     top_velocity = v_curr;
+    // }
+    // std::cout << "THE PITCH IS " << _stateEstimator->getResult().rpy[1]  << std::endl;
+    // std::cout << "THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
+
+
+
+    
+
+
+    if(curr_iter >= 3000){
+        _phase = -4; // move the hand
+        _motion_start_iter = _state_iter + 1;
+    }
+
+}
+
+
+void Recovering::_RearLegsActions(const int & curr_iter){  //0.0f, -1.4f, 2.7f;
+
+    if (curr_iter==0){
+      for(size_t i(0); i < 4; ++i) {
+          initial_jpos[i] = this->_legController->datas[i].q;
+      }
+    }
+    
+    for(size_t i(0); i<2; ++i){
+        // rear_jpos[i] << 0.f, -.8f, 1.6f;
+        rear_jpos[i] << 0.f, hip_angle, knee_angle;  // -1.2 -> -1.4 -> -1.8
+        //rear_jpos[i] << 0.f, -1.0f, 0.4f;
+    }
+    for(size_t i(0); i<2; ++i){
+        // rear_jpos[i] << 0.f, -.8f, 1.6f;
+        rear_jpos_2[i] << 0.f, -1.6f, 2.45f;  // 2.7 -> 2.5 -> 2.45
+    }
+
+    // int length = x_d*200*test_factor;
+    if (curr_iter > rear_ramp){  // <100
+      kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+      kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+      for(size_t leg(2); leg<4; ++leg){
+          _Step(curr_iter-rear_ramp, back_length2, leg, rear_jpos_2[leg-2], rear_jpos[leg-2]);
+      }
+      // std::cout <<  " FRONT LENGTH " << front_length << " BACK LENGTH 1 " << back_length1 << " BACK LENGTH 2 " << back_length2 << " REAR RAMP " << rear_ramp << std::endl;
+      // std::cout << " HIP ANGLE " << hip_angle << " KNEE ANGLE " << knee_angle << std::endl;
+      // if(curr_iter >= 1500){ 
+        
+      //   _phase = -114;
+      // }
+
+    }else{
+      for(size_t leg(2); leg<4; ++leg){
+          _Step(curr_iter, back_length1, leg, initial_jpos[leg], rear_jpos_2[leg-2]);  // back_factor*rear_ramp -> back_length1
+      }
+    }
+
+    
+
+    Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
+    // this->_stateEstimator->setContactPhase(se_contactState);
+
+}
+
+
+
+void Recovering::_Step(
+    const size_t & curr_iter, size_t max_iter, int leg, 
+    const Vec3<float> & ini, const Vec3<float> & fin){
+
+    float a(0.f);
+    float b(1.f);
+
+    // if we're done interpolating
+    if(curr_iter <= max_iter) {
+      b = (float)curr_iter/(float)max_iter;
+      a = 1.f - b;
+    }
+
+    // compute setpoints
+    Vec3<float> inter_pos = a * ini + b * fin;
+
+    Vec3<float> vec3;
+    // vec3 << 0.0, -20.0, 20.0;
+    vec3 << 0.0, 0.0, 0.0;
+
+    // do control
+    this->jointPDControl(leg, inter_pos, vec3);
+
+
+}
+
+void Recovering::_MoveHands(const int & curr_iter){
+  std::cout << "TRY TO KEEP BALANCE !!!  " << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i) {
+            initial_jpos[i] = this->_legController->datas[i].q;
+        }
+    }
+
+    // int length = front_factor*90.5; //80<x<100, around 90, 80<89<89.5<x<90<100
+    // for(size_t i(0); i<2; ++i){
+    //     front_jpos[i] << 0.f, -1.6, 1.6*0.96;  
+    // }
+
+    // for(size_t leg(0); leg<2; ++leg){
+    //   _Step(curr_iter, length, 
+    //       leg, initial_jpos[leg], front_jpos[leg]);
+    // }
+
+
+    // Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
+
+    // if(curr_iter >= 1500){
+    //     _phase = -4; // move the hand
+    //     _motion_start_iter = _state_iter + 1;
+    // }
+
+
+}
+
+bool Recovering::isSafe(){
+  // Check RC mode
+  // More checks should be added
+  // std::cout << "conrol mode: " << _controlParameters->control_mode << std::endl; // 0
+  if (_controlParameters->control_mode != K_RECOVERY_STAND){
+    return false;
+  }else{
+    return true;
+  }
+}
+
+void Recovering::_Passive(){
+  // std::cout << "I was stopped! "  << std::endl; 
+  // _phase = 0;
+  _motion_start_iter = _state_iter + 1;
+  // std::cout << "SHIT. WHAT IF I DO NOTHING ?? "  << std::endl; 
+  // kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+  // kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+
+  // for(int leg=0; leg<4; leg++){
+  //   this->_legController->commands[leg].kpJoint = kpMat;
+  // }
+  // std::cout << "Set Kp and Kd successfully! "  << std::endl; 
+  // for (int leg = 0; leg < 4; leg++) {
+  //   this->_legController->commands[leg].zero();
+  // }
+  // for (int leg=0; leg<4; leg++){
+  //   for (int j=0; j<3; j++){
+  //     std::cout << "[DEBUG] Set leg " <<leg<< " joint "<<j<<" to zero"  << std::endl; // 0
+  //     this->_legController->commands[leg].tauFeedForward[0] = 0.0;
+  //   }
+  // }
+}
+
+void Recovering::_Finish(){
+  std::cout << "I was finished! "  << std::endl; 
+  _phase = 5;
+  _motion_start_iter = _state_iter + 1;
+
+}
+
+float Recovering::_Box(const float & num, const float & min, const float & max){
+    if (num > max) return max;
+    else if (num < min) return min;
+    else return num;
+}
+
+double Recovering::_toPitch(const Eigen::Quaterniond& q){
+
+    double roll_, pitch_, yaw_;
+
+    // roll (x-axis rotation)
+    double sinr_cosp = +2.0 * (q.w() * q.x() + q.y() * q.z());
+    double cosr_cosp = +1.0 - 2.0 * (q.x() * q.x() + q.y() * q.y());
+    roll_ = atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    
+    double sinp = +2.0 * (q.w() * q.y() - q.z() * q.x());
+    if (fabs(sinp) >= 1)
+    pitch_ = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+    pitch_ = asin(sinp);
+
+    // yaw (z-axis rotation)
+    double siny_cosp = +2.0 * (q.w() * q.z() + q.x() * q.y());
+    double cosy_cosp = +1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z());
+    yaw_ = atan2(siny_cosp, cosy_cosp);
+
+    if (fabs(roll_) > 3.1415/2 || fabs(yaw_) > 3.1415/2)
+        pitch_ = -3.1415 - pitch_;
+    return pitch_;
+
+
+}
+
+std::vector<double> Recovering::_toRPY(const Eigen::Quaterniond& q){
+    // roll (x-axis rotation)
+    double roll_;
+    double sinr_cosp = +2.0 * (q.w() * q.x() + q.y() * q.z());
+    double cosr_cosp = +1.0 - 2.0 * (q.x() * q.x() + q.y() * q.y());
+    roll_ = atan2(sinr_cosp, cosr_cosp);
+
+    // pitch (y-axis rotation)
+    double pitch_;
+    double sinp = +2.0 * (q.w() * q.y() - q.z() * q.x());
+    if (fabs(sinp) >= 1)
+    pitch_ = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+    else
+    pitch_ = asin(sinp);
+
+    
+
+    // yaw (z-axis rotation)
+    double yaw_;
+    double siny_cosp = +2.0 * (q.w() * q.z() + q.x() * q.y());
+    double cosy_cosp = +1.0 - 2.0 * (q.y() * q.y() + q.z() * q.z());
+    yaw_ = atan2(siny_cosp, cosy_cosp);
+
+    std::vector<double> ans = {roll_, pitch_, yaw_};
+
+    return ans;
+}

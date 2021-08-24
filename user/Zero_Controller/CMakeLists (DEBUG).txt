@@ -1,0 +1,38 @@
+include_directories("./")
+include_directories("../MIT_Controller/")
+include_directories("../MIT_Controller/Controllers")
+include_directories("../MIT_Controller/Controllers/BackFlip")
+include_directories("../../robot/include")
+include_directories("../../common/include/")
+include_directories("../../common/FootstepPlanner")
+include_directories("../../third-party/")
+include_directories("../../third-party/ParamHandler")
+
+include_directories("../../lcm-types/cpp")
+include_directories(${CMAKE_BINARY_DIR})
+include_directories(${PROJECT_SOURCE_DIR})
+
+file(GLOB_RECURSE sources
+"./*.cpp"
+# "../MIT_Controller/FSM_States/*.cpp" 
+#"../MIT_Controller/Controllers/BackFlip/*.cpp" 
+# "../MIT_Controller/Controllers/BalanceController/*.cpp" 
+# "../MIT_Controller/Controllers/convexMPC/*.cpp"
+)
+
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+
+# THE COMMENT BELOW WORKS FINE !
+
+set(PYTHON_EXECUTABLE "/home/chen/miniconda3/envs/py36/bin/python")
+set(PYTHON_LIBRARY "/home/chen/miniconda3/envs/py36/lib/libpython3.6m.so")
+
+find_package(pybind11 REQUIRED)
+# add_executable(train main.cpp)
+add_executable(train ${sources} main.cpp)
+# target_link_libraries(train robot biomimetics dynacore_param_handler)
+target_link_libraries(train dynacore_param_handler qpOASES)
+target_link_libraries(train Goldfarb_Optimizer osqp)
+target_link_libraries(train WBC_Ctrl)
+target_link_libraries(train VisionMPC)
+target_link_libraries(train pybind11::embed)
