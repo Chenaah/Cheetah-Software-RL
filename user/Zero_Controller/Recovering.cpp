@@ -516,7 +516,7 @@ void Recovering::_Prepare_2(const int & curr_iter){
     }
 
 
-    if (curr_iter % 20 == 0){
+    if (curr_iter % 200 == 0){
         // Eigen::Quaterniond _orientation(_stateEstimator->getResult().orientation[0], _stateEstimator->getResult().orientation[1], _stateEstimator->getResult().orientation[2], _stateEstimator->getResult().orientation[3]);
         // W, X, Y, Z
         // pitch = _toPitch(_orientation);
@@ -594,10 +594,13 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     _update_rpy();
     pitch = rpy[1];
 
-    std::cout << "[STANDING] THE PITCH (ALPHA) IS " << pitch << std::endl;
-    std::cout << "[STANDING]   --  THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
-    std::cout << "[STANDING] THE POSITION OF THE BACK HIP (THETA1) IS " << _legController->datas[2].q[1] << ", " << _legController->datas[3].q[1]  << std::endl;
-    std::cout << "[STANDING] THE POSITION OF THE BACK KNEE (THETA2) IS " << _legController->datas[2].q[2] << ", " << _legController->datas[3].q[2]  << std::endl;
+    if (curr_iter % 200 == 0){
+        std::cout << "[STANDING] THE PITCH (ALPHA) IS " << pitch << std::endl;
+        std::cout << "[STANDING]   --  THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
+        std::cout << "[STANDING] THE POSITION OF THE BACK HIP (THETA1) IS " << _legController->datas[2].q[1] << ", " << _legController->datas[3].q[1]  << std::endl;
+        std::cout << "[STANDING] THE POSITION OF THE BACK KNEE (THETA2) IS " << _legController->datas[2].q[2] << ", " << _legController->datas[3].q[2]  << std::endl;
+    }
+    
 
     // std::cout << "TH1: " << bullet_q[10] - back_hip_offset << ", TH2: " << bullet_q[11] << " ( k = " << k_ << ")  -->  PITCH: " << pitch << "    HEIGHT: " << _stateEstimator->getResult().position[2] << std::endl;
     // std::cout << "JPOS: [" << bullet_q[0] << ", " << bullet_q[1] << ", " << bullet_q[2] << ", " << bullet_q[3] << ", " << bullet_q[4] << ", "<< bullet_q[5] << ", "<< bullet_q[6] << ", "<< bullet_q[7] << ", "<< bullet_q[8] << ", "<< bullet_q[9] << ", "<< bullet_q[10] << ", " << bullet_q[11] << "]" << std::endl;
@@ -782,6 +785,8 @@ void Recovering::_Walk(const int & curr_iter){
 
         if (curr_iter != 0 && !_done && curr_iter <= 10000)
             _update_reward();
+        else
+            std::cout << "[RETURN] ==================  FINAL RETURN: " << episode_return << "  ==================" << std::endl;
         
         // std::cout << "PITCH AFTER RESET:::::::::::::::::::: " <<  state[1] << std::endl;
         // pthread_t tid[1];
@@ -892,14 +897,17 @@ void Recovering::_Walk(const int & curr_iter){
             }
             if (progressing_agent_factor < agent_factor && 
                 progressing_param_a_multiplier > param_opt[3]*0.8)  // otherwise the progressing_param_a_multiplier may stop increasing due to unstability
-                progressing_agent_factor += 0.0001;
-                         
+                progressing_agent_factor += 0.01;
+             
+            if (progressing_agent_factor > agent_factor)
+                progressing_agent_factor = agent_factor;
 
-            std::cout << "[PROGRESSING] I FEEL GOOD! THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
+            if (curr_iter % 50)
+                std::cout << "[PROGRESSING] I FEEL GOOD! THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
 
         } else {
-            std::cout << "[PROGRESSING] EMMM..... THE D ERROR IS NOW " << abs_d_error << " AND THE P ERROR IS NOW " << abs_p_error <<  " THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
-
+            if (curr_iter % 50)
+                std::cout << "[PROGRESSING] EMMM..... THE D ERROR IS NOW " << abs_d_error << " AND THE P ERROR IS NOW " << abs_p_error <<  " THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
         }
         // progressing_param_a_multiplier = 0;  
         ////////
@@ -955,7 +963,8 @@ void Recovering::_Walk(const int & curr_iter){
     } else {
         param_a_buffered = std::max(param_a_buffered-0.001, 0.0);
         param_b_buffered = std::max(param_a_buffered-0.001, 0.0);
-        std::cout << "[STOP] Trying to stop, the param_a_buffered has decreased to " << param_a_buffered << std::endl; 
+        if (curr_iter % 50)
+            std::cout << "[STOP] Trying to stop, the param_a_buffered has decreased to " << param_a_buffered << std::endl; 
     }
 
     param_a_buffer.push_back(param_a_buffered);
@@ -1011,9 +1020,11 @@ void Recovering::_Walk(const int & curr_iter){
 
     assert((unsigned int)pos_impl[2][0] == 0 && (unsigned int)pos_impl[3][0] == 0);
 
-
-    std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[0][0] << ", "<<  pos_impl[0][1] << "] " << std::endl;
-    std::cout << "[CONTROL] FINAL LEG ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << std::endl;
+    if (curr_iter % 50){
+        std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[0][0] << ", "<<  pos_impl[0][1] << "] " << std::endl;
+        std::cout << "[CONTROL] FINAL LEG ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << std::endl;
+    }
+    
 
     #if DEBUG
     debug_info_stream << "FINAL ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
@@ -1066,8 +1077,8 @@ bool Recovering::_has_stopped(){
         actions_stop = false;
     if (fabs(param_a) > 0.001)
         actions_stop = false;
-    if (!actions_stop)
-        std::cout << "[STOP] STOPPING CHECK DIDN'T PASS ..." << std::endl;
+    // if (!actions_stop)
+    //     std::cout << "[STOP] STOPPING CHECK DIDN'T PASS ..." << std::endl;
     return actions_stop;
 
 }
@@ -1508,9 +1519,9 @@ void Recovering::_SettleDown(const int & curr_iter){
     prepare_jpos[2] << -0.0f, theta1, theta2;
     prepare_jpos[3] << 0.0f, theta1, theta2;
 
-
-    std::cout << "SETTLING DOWN: " << prepare_jpos[0][0] << ", " << prepare_jpos[0][1] << ", " << prepare_jpos[0][2] << ", " << 
-                                      prepare_jpos[1][0] << ", " << prepare_jpos[1][1] << ", " << prepare_jpos[1][2] << std::endl;
+    if (curr_iter % 50 == 0)
+        std::cout << "SETTLING DOWN: " << prepare_jpos[0][0] << ", " << prepare_jpos[0][1] << ", " << prepare_jpos[0][2] << ", " << 
+                                          prepare_jpos[1][0] << ", " << prepare_jpos[1][1] << ", " << prepare_jpos[1][2] << std::endl;
 
 
 
@@ -1559,11 +1570,12 @@ void Recovering::_InverseRearLegsActions(const int & curr_iter){
     _update_rpy();
     pitch = rpy[1];
 
-    std::cout << " THE PITCH (ALPHA) IS " << pitch << std::endl;
-    std::cout << "   --  THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
-    std::cout << " THE POSITION OF THE BACK HIP (THETA1) IS " << _legController->datas[2].q[1] << ", " << _legController->datas[3].q[1]  << std::endl;
-    std::cout << " THE POSITION OF THE BACK KNEE (THETA2) IS " << _legController->datas[2].q[2] << ", " << _legController->datas[3].q[2]  << std::endl;
-
+    if (curr_iter % 50 == 0){
+        std::cout << " THE PITCH (ALPHA) IS " << pitch << std::endl;
+        std::cout << "   --  THE ORIENTATION IS " << _stateEstimator->getResult().orientation[0] << ", "<< _stateEstimator->getResult().orientation[1]<< ", "<< _stateEstimator->getResult().orientation[2]<< ", "<< _stateEstimator->getResult().orientation[3] << std::endl;
+        std::cout << " THE POSITION OF THE BACK HIP (THETA1) IS " << _legController->datas[2].q[1] << ", " << _legController->datas[3].q[1]  << std::endl;
+        std::cout << " THE POSITION OF THE BACK KNEE (THETA2) IS " << _legController->datas[2].q[2] << ", " << _legController->datas[3].q[2]  << std::endl;
+    }
     // std::cout << "TH1: " << bullet_q[10] - back_hip_offset << ", TH2: " << bullet_q[11] << " ( k = " << k_ << ")  -->  PITCH: " << pitch << "    HEIGHT: " << _stateEstimator->getResult().position[2] << std::endl;
     // std::cout << "JPOS: [" << bullet_q[0] << ", " << bullet_q[1] << ", " << bullet_q[2] << ", " << bullet_q[3] << ", " << bullet_q[4] << ", "<< bullet_q[5] << ", "<< bullet_q[6] << ", "<< bullet_q[7] << ", "<< bullet_q[8] << ", "<< bullet_q[9] << ", "<< bullet_q[10] << ", " << bullet_q[11] << "]" << std::endl;
     prepare_jpos[2] << -0.0f, theta1 + back_hip_offset, theta2;
@@ -1885,26 +1897,8 @@ bool Recovering::isSafe(){
 }
 
 void Recovering::_Passive(){
-//   std::cout << "I was stopped! "  << std::endl; 
-  // _phase = 0;
-  _motion_start_iter = _state_iter + 1;
-  // std::cout << "SHIT. WHAT IF I DO NOTHING ?? "  << std::endl; 
-  // kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
-  // kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
 
-  // for(int leg=0; leg<4; leg++){
-  //   this->_legController->commands[leg].kpJoint = kpMat;
-  // }
-  // std::cout << "Set Kp and Kd successfully! "  << std::endl; 
-  // for (int leg = 0; leg < 4; leg++) {
-  //   this->_legController->commands[leg].zero();
-  // }
-  // for (int leg=0; leg<4; leg++){
-  //   for (int j=0; j<3; j++){
-  //     std::cout << "[DEBUG] Set leg " <<leg<< " joint "<<j<<" to zero"  << std::endl; // 0
-  //     this->_legController->commands[leg].tauFeedForward[0] = 0.0;
-  //   }
-  // }
+  _motion_start_iter = _state_iter + 1;
 
 }
 
@@ -2076,7 +2070,7 @@ void Recovering::_process_remote_controller_signal(const int & curr_iter){
     //     do nothing, the show will go on
     // if phase == 6 and mode == 11:
     //    phase = 0
-    (void)curr_iter;
+    // (void)curr_iter;
 
     rc_mode = this->_desiredStateCommand->rcCommand->mode;
     // float rc_value = (this->_desiredStateCommand->rcCommand->v_des[0] + 0.7) / 2.1 *2 - 1 + 0.333333;  // -1 ~ 1
@@ -2109,7 +2103,10 @@ void Recovering::_process_remote_controller_signal(const int & curr_iter){
 
     }
 
-    std::cout << "[RC] PHASE: " << _phase << "  RC MODE: " << rc_mode << std::endl;
+    if (curr_iter % 500 == 0)
+        std::cout << "[RC] PHASE: " << _phase << "  RC MODE: " << rc_mode << std::endl;
+    
+    
 
     // std::cout << " TEST, MODE: " << rc_mode << "  VALUE: " << this->_desiredStateCommand->rcCommand->v_des[0] << ", " 
     //                                                     << this->_desiredStateCommand->rcCommand->v_des[1] << ", " 
