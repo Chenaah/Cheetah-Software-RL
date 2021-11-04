@@ -34,7 +34,7 @@ Recovering::Recovering(){
 
     front_offset << 0.f, front_hip_offset, 0.f;
     back_offset << 0.f, back_hip_offset, 0.f;
-
+    backl_offset <<  0.f, back_hip_offset - fix_leg7, 0.f;
 
     if (action_mode == ActionMode::partial)
         a_dim = 4;
@@ -71,16 +71,23 @@ Recovering::Recovering(){
     RunOpts = NULL;
 
     char* homeDir = getenv("HOME");
-    const char* saved_model_dir = "/DAM/"; 
-    char* saved_model_dir_full = new char[strlen(homeDir) + strlen(saved_model_dir) + 1 + 1];
-    strcpy(saved_model_dir_full, homeDir);
-    strcat(saved_model_dir_full, saved_model_dir);
-
+    // const char* saved_model_dir = "/DAM/"; 
+    // char* saved_model_dir_full = new char[strlen(homeDir) + strlen(saved_model_dir) + 1 + 1];
+    // strcpy(saved_model_dir_full, homeDir);
+    // strcat(saved_model_dir_full, saved_model_dir);
+    glob_t globbuf;
+    const char* dam_folder = "/DAM*/"; 
+    char* dam_dir_full = new char[strlen(homeDir) + strlen(dam_folder) + 1 + 1];
+    strcpy(dam_dir_full, homeDir);
+    strcat(dam_dir_full, dam_folder);
+    glob(dam_dir_full, 0, NULL, &globbuf);
+    assert(globbuf.gl_pathc == 1);
+    DAM_path = globbuf.gl_pathv[0];
+    std::cout << "Deterministic Actro Model " << DAM_path << " FOUND!" <<std::endl;
     const char* checking_file = "saved_model.pb"; // only used for checking if RL agent is enabled
-    char* checking_file_path = new char[strlen(saved_model_dir_full) + strlen(checking_file) + 1 + 1];
-    strcpy(checking_file_path, saved_model_dir_full);
+    char* checking_file_path = new char[strlen(DAM_path) + strlen(checking_file) + 1 + 1];
+    strcpy(checking_file_path, DAM_path);
     strcat(checking_file_path, checking_file);
-
 
     std::ifstream model_exist(checking_file_path);
     if (model_exist.good()){
@@ -89,7 +96,7 @@ Recovering::Recovering(){
 
         const char* tags = "serve"; 
         int ntags = 1;
-        sess = TF_LoadSessionFromSavedModel(SessionOpts, RunOpts, saved_model_dir_full, &tags, ntags, graph, NULL, status);
+        sess = TF_LoadSessionFromSavedModel(SessionOpts, RunOpts, DAM_path, &tags, ntags, graph, NULL, status);
         
         if(TF_GetCode(status) == TF_OK)
             printf("TF_LoadSessionFromSavedModel OK\n");
@@ -140,6 +147,7 @@ Recovering::Recovering(){
     #endif
 
     std::cout << std::setprecision(3) << std::fixed;
+
 
 
 
@@ -207,6 +215,34 @@ void Recovering::runtest() {
       case 12:
           _BoundToStand(_state_iter - _motion_start_iter);
           break;
+      case 13:
+          _ClimbPre(_state_iter - _motion_start_iter);
+          break;
+      case 14:
+          _ClimbPre1(_state_iter - _motion_start_iter);
+          break;
+      case 15:
+          _Climb(_state_iter - _motion_start_iter);
+          break;
+      case 16:
+          _Climb1(_state_iter - _motion_start_iter);
+          break;
+      case 17:
+          _Climb2(_state_iter - _motion_start_iter);
+          break;
+      case 18:
+          _Climb3(_state_iter - _motion_start_iter);
+          break;
+      case 19:
+          _Climb4(_state_iter - _motion_start_iter);
+          break;
+    //   case 20:
+    //       _Climb5(_state_iter - _motion_start_iter);
+    //       break;
+      case 21:
+          _Pull(_state_iter - _motion_start_iter);
+          break;
+      
       
     }
 
@@ -294,9 +330,10 @@ void Recovering::_SetJPosInterPts(
 void Recovering::jointPDControl(
     int leg, Vec3<float> qDes, Vec3<float> qdDes) {
 
-    // kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
-    kpMat << 120, 0, 0, 0, 120, 0, 0, 0, 120;
-    kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+    kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+    // kpMat << 120, 0, 0, 0, 120, 0, 0, 0, 120;
+    kdMat << 10, 0, 0, 0, 10, 0, 0, 0, 10;
+    // kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
 
     this->_legController->commands[leg].kpJoint = kpMat;
     this->_legController->commands[leg].kdJoint = kdMat;
@@ -334,6 +371,13 @@ void Recovering::_FoldLegs(const int & curr_iter){
       initial_jpos[i] = this->_legController->datas[i].q;
       
     }
+
+    // for(size_t i(0); i < 2; ++i)
+    //     initial_jpos[i] = initial_jpos[i] - front_offset;
+    // initial_jpos[3] = initial_jpos[3] - backl_offset;
+    // initial_jpos[4] = initial_jpos[4] - back_offset;
+
+
     // std::cout<< "====================== FOLD LEG BEGINS! ======================" << curr_iter <<std::endl;
 
     // t_start = std::chrono::high_resolution_clock::now();
@@ -399,6 +443,14 @@ void Recovering::_FoldLegs(const int & curr_iter){
     _SetJPosInterPts(curr_iter, fold_ramp_iter, i, 
         initial_jpos[i], fold_jpos[i]);
   }
+
+//   for(size_t i(0); i<4; ++i){
+//     _Step(curr_iter, fold_ramp_iter, i, 
+//         initial_jpos[i], fold_jpos[i]);
+//   }
+
+
+
   if(curr_iter >= fold_ramp_iter + 100){
     if(_UpsideDown()){
       _flag = RollOver;
@@ -583,6 +635,8 @@ void Recovering::_RearLegsActions(const int & curr_iter){
 
     if (theta2 < -1.0)
         theta2 += 0.0005;
+    // if (theta2 < -1.5)
+    //     theta2 += 0.0005;
     if (k_ < k_final)
         k_ += 0.0003;
     // std::cout << "K: " << k_ << std::endl;
@@ -593,6 +647,8 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     // Eigen::Quaterniond _orientation(_stateEstimator->getResult().orientation[0], _stateEstimator->getResult().orientation[1], _stateEstimator->getResult().orientation[2], _stateEstimator->getResult().orientation[3]);
     _update_rpy();
     pitch = rpy[1];
+
+    std::cout << "[DEBUG] THE CALCULATED ALPHA: " << _alpha() << std::endl; // THSI SHOULD BE THE NEGATIVE OF THE PITCH
 
     if (curr_iter % 200 == 0){
         std::cout << "[STANDING] THE PITCH (ALPHA) IS " << pitch << std::endl;
@@ -621,7 +677,7 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     // #if DEBUG
     // std::cout << "[DEBUG] ARMS: " << bullet_q[0]  << ", "<< bullet_q[1] - front_hip_offset<< ", "<< bullet_q[3] <<", "<< bullet_q[4] - front_hip_offset <<"] "<<std::endl; 
     // #endif
-    int stand_time = 0;
+    int stand_time = 9999999;   // TODO DEBUG
     // if (!walk_enable)
     //     stand_time = 9999;
 
@@ -637,7 +693,8 @@ void Recovering::_RearLegsActions(const int & curr_iter){
         if (walk_enable)
             _phase = 5;
         else
-            _phase = 6;
+            // _phase = 6;
+            _phase = 13;   // TODO DEBUG
 
 
         _motion_start_iter = _state_iter + 1;
@@ -656,6 +713,183 @@ float Recovering::_theta2_prime_hat(const float & th1_prime){
 float Recovering::_theta1_hat(const float & th2){
     return -PI/2 + (-th2) + gamma_ - acos((l_/2 + b_*cos(PI - (-th2) - gamma_) -c_*cos(gamma_)) / k_ / a_);
 }
+
+float Recovering::_beta(){
+    // for(size_t i(0); i < 4; ++i)
+    //     initial_jpos[i] = this->_legController->datas[i].q;
+    // for(size_t i(0); i < 2; ++i)
+    //     initial_jpos[i] = initial_jpos[i] - front_offset;
+    // for(size_t i(2); i < 4; ++i)
+    //     initial_jpos[i] = initial_jpos[i] - back_offset;
+            
+    float th2_curr = (this->_legController->datas[2].q[2] + this->_legController->datas[3].q[2]) / 2;
+    return PI + th2_curr - gamma_;
+}
+
+float Recovering::_alpha(){
+
+    float th1_curr = (this->_legController->datas[2].q[1] + this->_legController->datas[3].q[1]) / 2;
+    return PI/2 - th1_curr - _beta();
+
+}
+
+float Recovering::_beta(const float & th2){
+
+    return PI + th2 - gamma_;
+
+}
+
+float Recovering::_alpha(const float & th1, const float & th2){
+
+    return PI/2 - th1 - _beta(th2);
+
+}
+
+
+
+float Recovering::_head_height(){
+
+    float h_1 = c_*sin(gamma_);
+    float h_2 = b_*sin(_beta());
+    float h_3 = a_*sin(_alpha());
+    float table = table_global;
+    
+    // return (h_1 + h_2 + h_3) / cos(arm_ab) - table;
+    return (h_1 + h_2 + h_3 - table) / cos(arm_ab);
+
+}
+
+float Recovering::_head_height(const float & th1, const float & th2, const float & arm_ab_arg, const float & table){
+
+    float h_1 = c_*sin(gamma_);
+    float h_2 = b_*sin(_beta(th2));
+    float h_3 = a_*sin(_alpha(th1, th2));
+
+    // return (h_1 + h_2 + h_3) / cos(arm_ab_arg) - table;
+    return (h_1 + h_2 + h_3 - table) / cos(arm_ab_arg);
+
+}
+
+
+
+void Recovering::_arms_IK(const float & x, float & th1_prime, float & th2_prime){
+
+    float y = _head_height();
+    float foracos = (pow(x, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+    // std::cout << "[DEBUG] foracos: " << foracos << std::endl;
+    assert(foracos > -1 && foracos < 1);
+    float theta2_ik = -acos(foracos);
+    float eq_b = 2*c_*sin(theta2_ik)*y;
+    float eq_a = pow(c_, 2)*pow(sin(theta2_ik), 2) + pow((c_*cos(theta2_ik) + b_), 2);
+    float eq_c = pow(y, 2) - pow((c_*cos(theta2_ik) + b_), 2);
+    float theta1_ik;
+
+    if (pow(eq_b, 2) - 4*eq_a*eq_c >= 0){
+        // float sin_theta1_ik_1 = (-eq_b + sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        float sin_theta1_ik_2 = (-eq_b - sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        // float theta1_ik_1 = asin(sin_theta1_ik_1);
+        float theta1_ik_2 = asin(sin_theta1_ik_2);
+        // # print("TWO THETA1_PRIME: {:.2f} AND {:.2f}".format(theta1_ik_1, theta1_ik_2))
+        theta1_ik = theta1_ik_2;  // CHHOSE A RIGHT ONE !
+    } else if (fabs(pow(eq_b, 2) - 4*eq_a*eq_c) < 0.001){
+        float sin_theta1_ik = (-eq_b + sqrt(0)) / (2*eq_a);
+        theta1_ik = asin(sin_theta1_ik);
+
+    } else {
+        // print(f"{eq_b}**2 - 4*{eq_a}*{eq_c} = {eq_b**2 - 4*eq_a*eq_c} < 0 !!")
+        std::cout << "[ARM IK] SHIT! IK CAN NOT BE SOLVED..." << std::endl;
+        theta1_ik = 0;
+    }
+
+    th2_prime = -theta2_ik;
+    th1_prime = -(_alpha() + theta1_ik);
+
+}
+
+void Recovering::_arms_IK(const float & x, const float & ab, const float & th1, const float & th2, const float & table, float & th1_prime, float & th2_prime){
+
+    float y = _head_height(th1, th2, ab, table);
+    float foracos = (pow(x, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+    // std::cout << "[DEBUG] foracos: " << foracos << std::endl;
+    assert(foracos > -1 && foracos < 1);
+    float theta2_ik = -acos(foracos);
+    float eq_b = 2*c_*sin(theta2_ik)*y;
+    float eq_a = pow(c_, 2)*pow(sin(theta2_ik), 2) + pow((c_*cos(theta2_ik) + b_), 2);
+    float eq_c = pow(y, 2) - pow((c_*cos(theta2_ik) + b_), 2);
+    float theta1_ik;
+
+    if (pow(eq_b, 2) - 4*eq_a*eq_c >= 0){
+        // float sin_theta1_ik_1 = (-eq_b + sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        float sin_theta1_ik_2 = (-eq_b - sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        // float theta1_ik_1 = asin(sin_theta1_ik_1);
+        float theta1_ik_2 = asin(sin_theta1_ik_2);
+        // # print("TWO THETA1_PRIME: {:.2f} AND {:.2f}".format(theta1_ik_1, theta1_ik_2))
+        theta1_ik = theta1_ik_2;  // CHHOSE A RIGHT ONE !
+    } else if (fabs(pow(eq_b, 2) - 4*eq_a*eq_c) < 0.001){
+        float sin_theta1_ik = (-eq_b + sqrt(0)) / (2*eq_a);
+        theta1_ik = asin(sin_theta1_ik);
+
+    } else {
+        // print(f"{eq_b}**2 - 4*{eq_a}*{eq_c} = {eq_b**2 - 4*eq_a*eq_c} < 0 !!")
+        std::cout << "[ARM IK] SHIT! IK CAN NOT BE SOLVED..." << std::endl;
+        theta1_ik = 0;
+    }
+
+    th2_prime = -theta2_ik;
+    th1_prime = -(_alpha(th1, th2) + theta1_ik);
+
+}
+
+void Recovering::_legs_IK(const float & x, const float & ab, const float & head_height, const float & pitch_arg, float & th1, float & th2){
+
+    float alpha_ = -pitch_arg;
+    float y = (head_height - a_ * sin(alpha_)) / cos(ab);
+    float foracos = (pow(x, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+    // std::cout << "[DEBUG] foracos: " << foracos << std::endl;
+    assert(foracos > -1 && foracos < 1);
+    float theta2_ik = -acos(foracos);
+    float eq_b = 2*c_*sin(theta2_ik)*y;
+    float eq_a = pow(c_, 2)*pow(sin(theta2_ik), 2) + pow((c_*cos(theta2_ik) + b_), 2);
+    float eq_c = pow(y, 2) - pow((c_*cos(theta2_ik) + b_), 2);
+    float theta1_ik;
+
+    if (pow(eq_b, 2) - 4*eq_a*eq_c >= 0){
+        // float sin_theta1_ik_1 = (-eq_b + sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        float sin_theta1_ik_2 = (-eq_b - sqrt(pow(eq_b, 2) - 4*eq_a*eq_c)) / (2*eq_a);
+        // float theta1_ik_1 = asin(sin_theta1_ik_1);
+        float theta1_ik_2 = asin(sin_theta1_ik_2);
+        // # print("TWO THETA1_PRIME: {:.2f} AND {:.2f}".format(theta1_ik_1, theta1_ik_2))
+        theta1_ik = theta1_ik_2;  // CHHOSE A RIGHT ONE !
+    } else if (fabs(pow(eq_b, 2) - 4*eq_a*eq_c) < 0.001){
+        float sin_theta1_ik = (-eq_b + sqrt(0)) / (2*eq_a);
+        theta1_ik = asin(sin_theta1_ik);
+
+    } else {
+        // print(f"{eq_b}**2 - 4*{eq_a}*{eq_c} = {eq_b**2 - 4*eq_a*eq_c} < 0 !!")
+        std::cout << "[ARM IK] SHIT! IK CAN NOT BE SOLVED..." << std::endl;
+        theta1_ik = 0;
+    }
+
+    th2 = -theta2_ik;
+    th1 = -(alpha_ + theta1_ik);
+
+}
+
+float Recovering::_delta_th(const float & butt_h, const float & delta_h){
+
+    // from delta h to delta theta
+    // h = -b sin(theta -gamma)  (when the foot are fully touching the floor)
+    // theta = asin(-h/b) + gamma
+    return asin(-(butt_h-c_*sin(gamma_) + delta_h)/b_) - asin(-(butt_h - c_*sin(gamma_))/b_);
+
+}
+
+
+float Recovering::_butt_height(const float & th2){
+
+    return b_ * cos(-PI/2 - th2 + gamma_) + c_*sin(gamma_);
+}
+
 
 void* Recovering::_Test(void* args){
     (void) args;
@@ -705,7 +939,7 @@ void Recovering::_Walk(const int & curr_iter){
     // state_estimator_lcmt debug_data;
     // debug_data.p[0] = curr_iter;
     // lcm.publish("debug_channel", &debug_data);
-    debug_info_stream << "SUB STEP " << curr_iter << "\n";
+    // debug_info_stream << "SUB STEP " << curr_iter << "\n";
     std::cout << "[DEBUG] SUB STEP " << curr_iter << "\n";
     #endif
 
@@ -746,10 +980,10 @@ void Recovering::_Walk(const int & curr_iter){
 
     }
 
-    // t_end = std::chrono::high_resolution_clock::now();
-    // double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-    // std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms / 1000 << " SEC" << std::endl;
-    // t_start = t_end;
+    t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
+    t_start = t_end;
 
     // t_end = std::chrono::high_resolution_clock::now();
     // double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
@@ -785,16 +1019,16 @@ void Recovering::_Walk(const int & curr_iter){
 
         if (curr_iter != 0 && !_done && curr_iter <= 10000)
             _update_reward();
-        else
-            std::cout << "[RETURN] ==================  FINAL RETURN: " << episode_return << "  ==================" << std::endl;
+        else if (curr_iter != 0)
+            _log_return();
         
         // std::cout << "PITCH AFTER RESET:::::::::::::::::::: " <<  state[1] << std::endl;
         // pthread_t tid[1];
         // pthread_create(&tid[0], NULL, _update_action_worker, this);
         #if DEBUG
-        debug_info_stream << "STATE: [" << state[0] << ", " << state[1] << ", " << state[2] << ", " << state[3] << ", " << state[4] << ", " << state[5] << ", \n        " << 
-                                           state[6] << ", " << state[7] << ", " << state[8] << ", " << state[9] << ", \n        " << 
-                                           state[10] << ", " << state[11] << ", " << state[12] << ", " << state[13] << "]" << std::endl;
+        // debug_info_stream << "STATE: [" << state[0] << ", " << state[1] << ", " << state[2] << ", " << state[3] << ", " << state[4] << ", " << state[5] << ", \n        " << 
+        //                                    state[6] << ", " << state[7] << ", " << state[8] << ", " << state[9] << ", \n        " << 
+        //                                    state[10] << ", " << state[11] << ", " << state[12] << ", " << state[13] << "]" << std::endl;
         #endif
         
 
@@ -814,7 +1048,7 @@ void Recovering::_Walk(const int & curr_iter){
 
         
         #if DEBUG
-        debug_info_stream << "AGENT ACTION: [" <<  action[0] << ", " <<  action[1] << ", " <<  action[2] << ", "<<  action[3] << ", "<<  action[4] << ", "<<  action[5]  << "] " << "\n";
+        // debug_info_stream << "AGENT ACTION: [" <<  action[0] << ", " <<  action[1] << ", " <<  action[2] << ", "<<  action[3] << ", "<<  action[4] << ", "<<  action[5]  << "] " << "\n";
         #endif
 
         leg_offsets_old = leg_offsets;
@@ -828,13 +1062,16 @@ void Recovering::_Walk(const int & curr_iter){
                 param_c_buffered = std::max(param_c_buffered-0.001, 0.0);
                 param_d_buffered = std::max(param_d_buffered-0.001, 0.0);
             }
-            // std::cout << "ACTION C: "<< param_c_buffered << " (ERROR P=" << p_error<< ") (ERROR D=" << d_error << ")" <<std::endl;
-            // std::cout << "ACTION D: "<< param_d_buffered << " (ERROR P=" << p_error_yaw<< ") (ERROR D=" << d_error_yaw << ")" <<std::endl;
+            std::cout << "[DEBUG] ACTION C: "<< param_c_buffered << " (ERROR P=" << p_error<< ") (ERROR D=" << d_error << ")" <<std::endl;
+            std::cout << "[DEBUG] ACTION D: "<< param_d_buffered << " (ERROR P=" << p_error_yaw<< ") (ERROR D=" << d_error_yaw << ")" <<std::endl;
         }
 
     }
 
     if (fast_error_update){
+
+        std::cout << "[DEBUG] D ERROR = " << _stateEstimator->getResult().omegaBody[1] << std::endl;
+        assert(!std::isnan(_stateEstimator->getResult().omegaBody[1]));
 
         d_error_buffer.push_back(_stateEstimator->getResult().omegaBody[1]);
         d_error_sum += _stateEstimator->getResult().omegaBody[1];
@@ -851,8 +1088,7 @@ void Recovering::_Walk(const int & curr_iter){
             d_error = d_error_sum / d_error_buffer.size();
         }
         
-        // std::cout << "[DEBUG] D ERROR = " << d_error_sum << " / " << d_error_buffer.size() << " = " << d_error << std::endl;
-        // std::cout << "[DEBUG] P ERROR = " << state[1] << " - " << pitch_ref << " = " << state[1] - pitch_ref << std::endl;
+        std::cout << "[DEBUG] P ERROR = " << state[1] << " - " << pitch_ref << " = " << state[1] - pitch_ref << std::endl;
 
         p_error_buffer.push_back(state[1] - pitch_ref);
         p_error_sum += state[1] - pitch_ref;
@@ -868,49 +1104,56 @@ void Recovering::_Walk(const int & curr_iter){
             p_error = p_error_sum / p_error_buffer.size();
         }
 
-        // PROGRESSING CONTROL
-        abs_d_error_buffer.push_back(fabs(_stateEstimator->getResult().omegaBody[1]));
-        abs_d_error_sum += fabs(_stateEstimator->getResult().omegaBody[1]);
-        if (abs_d_error_buffer.size() > progressing_buffer_size){
-            abs_d_error_sum -= abs_d_error_buffer[0];
-            abs_d_error_buffer.erase(abs_d_error_buffer.begin());
-        } 
-        abs_d_error = abs_d_error_sum / abs_d_error_buffer.size();
+        if (progressing){
 
-        abs_p_error_buffer.push_back(fabs(state[1] - pitch_ref));
-        abs_p_error_sum += fabs(state[1] - pitch_ref);
-        if (abs_p_error_buffer.size() > progressing_buffer_size){
-            abs_p_error_sum -= abs_p_error_buffer[0];
-            abs_p_error_buffer.erase(abs_p_error_buffer.begin());
-        } 
-        abs_p_error = abs_p_error_sum / abs_p_error_buffer.size();
+            // PROGRESSING CONTROL
+            abs_d_error_buffer.push_back(fabs(_stateEstimator->getResult().omegaBody[1]));
+            abs_d_error_sum += fabs(_stateEstimator->getResult().omegaBody[1]);
+            if (abs_d_error_buffer.size() > progressing_buffer_size){
+                abs_d_error_sum -= abs_d_error_buffer[0];
+                abs_d_error_buffer.erase(abs_d_error_buffer.begin());
+            } 
+            abs_d_error = abs_d_error_sum / abs_d_error_buffer.size();
 
-        if (curr_iter > 200 && abs_d_error < 0.35 && abs_p_error < 0.15){
-            if (progressing_param_a_multiplier < param_opt[3]) {
-                if (progressing_param_a_multiplier < param_opt[3]*0.2)
-                    progressing_param_a_multiplier += 0.001;
-                else if (progressing_param_a_multiplier < param_opt[3]*0.4)
-                    progressing_param_a_multiplier += 0.004; // DEVELOPING
-                else
-                    progressing_param_a_multiplier += 0.008;
+            abs_p_error_buffer.push_back(fabs(state[1] - pitch_ref));
+            abs_p_error_sum += fabs(state[1] - pitch_ref);
+            if (abs_p_error_buffer.size() > progressing_buffer_size){
+                abs_p_error_sum -= abs_p_error_buffer[0];
+                abs_p_error_buffer.erase(abs_p_error_buffer.begin());
+            } 
+            abs_p_error = abs_p_error_sum / abs_p_error_buffer.size();
 
+            if (curr_iter > 200 && abs_d_error < 0.35 && abs_p_error < 0.15){
+                if (progressing_param_a_multiplier < param_opt[3]) {
+                    if (progressing_param_a_multiplier < param_opt[3]*0.2)
+                        progressing_param_a_multiplier += 0.001;
+                    else if (progressing_param_a_multiplier < param_opt[3]*0.4)
+                        progressing_param_a_multiplier += 0.004; // DEVELOPING
+                    else
+                        progressing_param_a_multiplier += 0.008;
+
+                }
+                if (progressing_agent_factor < agent_factor && 
+                    progressing_param_a_multiplier > param_opt[3]*0.8)  // otherwise the progressing_param_a_multiplier may stop increasing due to unstability
+                    progressing_agent_factor += 0.01;
+
+                else if (progressing_agent_factor < agent_factor &&  gait == Gait::none)
+                    progressing_agent_factor += 0.01;
+                
+                if (progressing_agent_factor > agent_factor)
+                    progressing_agent_factor = agent_factor;
+
+                if (curr_iter % 50)
+                    std::cout << "[PROGRESSING] I FEEL GOOD! THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
+
+            } else {
+                if (curr_iter % 50)
+                    std::cout << "[PROGRESSING] EMMM..... THE D ERROR IS NOW " << abs_d_error << " AND THE P ERROR IS NOW " << abs_p_error <<  " THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
             }
-            if (progressing_agent_factor < agent_factor && 
-                progressing_param_a_multiplier > param_opt[3]*0.8)  // otherwise the progressing_param_a_multiplier may stop increasing due to unstability
-                progressing_agent_factor += 0.01;
-             
-            if (progressing_agent_factor > agent_factor)
-                progressing_agent_factor = agent_factor;
+            // progressing_param_a_multiplier = 0;  
+            ////////
 
-            if (curr_iter % 50)
-                std::cout << "[PROGRESSING] I FEEL GOOD! THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
-
-        } else {
-            if (curr_iter % 50)
-                std::cout << "[PROGRESSING] EMMM..... THE D ERROR IS NOW " << abs_d_error << " AND THE P ERROR IS NOW " << abs_p_error <<  " THE PROGRESSING A MULTIPLIER IS NOW " << progressing_param_a_multiplier << " AND THE AGENT FACTOR IS " << progressing_agent_factor << std::endl;
         }
-        // progressing_param_a_multiplier = 0;  
-        ////////
 
         // std::cout << "[DEBUG] param_a: " << param_a << " delta_x: "<< delta_x << std::endl;
 
@@ -1000,6 +1243,8 @@ void Recovering::_Walk(const int & curr_iter){
     pos_impl[1] << _Box(normalised_abduct_left, ad_left_min, ad_left_max),
                    _Box(initial_jpos[1][1] + action_multiplier*action[3] + arm_pd_multiplier*param_c_buffered, -PI, 0), 
                    _Box(_theta2_prime_hat(_Box(initial_jpos[1][1] + action_multiplier*action[3] + arm_pd_multiplier*param_c_buffered, -PI, 0)), -PI/2, PI/2);
+    pos_impl[2] << 0, theta1, theta2;
+    pos_impl[3] << 0, theta1, theta2;
     // pos_impl[2] << 0, theta1 + param_a*sin(param_b*curr_iter), theta2 - param_a*sin(param_b*curr_iter);
 
     // if (old_sin_value*sin(param_b*curr_iter-PI/2) <= 0){
@@ -1011,8 +1256,11 @@ void Recovering::_Walk(const int & curr_iter){
 
     old_sin_value = sin(param_b*curr_iter-PI/2);
 
+    
+
     if (gait != Gait::none)
         _update_basic_leg_actions(curr_iter); 
+
     // this will rewrite pos_impl[2][1], pos_impl[2][2], pos_impl[3][1], and pos_impl[3][2]
 
     _process_leg_offsets(curr_iter);
@@ -1020,35 +1268,48 @@ void Recovering::_Walk(const int & curr_iter){
 
     assert((unsigned int)pos_impl[2][0] == 0 && (unsigned int)pos_impl[3][0] == 0);
 
+    for (size_t leg(0); leg<4; ++leg)
+        for (size_t j(0); j<3; ++j)
+            assert(!std::isnan(pos_impl[leg][j]));
+
     if (curr_iter % 50){
-        std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[0][0] << ", "<<  pos_impl[0][1] << "] " << std::endl;
+        std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[1][0] << ", "<<  pos_impl[1][1] << "] " << std::endl;
         std::cout << "[CONTROL] FINAL LEG ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << std::endl;
     }
-    
+
 
     #if DEBUG
-    debug_info_stream << "FINAL ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
+    // debug_info_stream << "FINAL ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
     // std::cout << "[DEBUG] LEG FINAL ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
     std::cout << "[DEBUG] ARM FINAL ACTION: [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[1][0] << ", "<<  pos_impl[1][1] << "] " << "\n";
     #endif
 
-    
-    for(size_t leg(0); leg<2; ++leg){
-        _Step(curr_iter, 9, 
-        leg, initial_jpos[leg], pos_impl[leg]);
-    }
+    if (_within_limits()){  // SECURITY CHECK:
 
-    for(size_t leg(2); leg<4; ++leg){
-        _Step(curr_iter, 0, 
-        leg, initial_jpos[leg], pos_impl[leg]);
+        for(size_t leg(0); leg<2; ++leg){
+            _Step(curr_iter, 9, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        }
+
+        for(size_t leg(2); leg<4; ++leg){
+            _Step(curr_iter, 0, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        }
+
+    } else {
+
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+
     }
+    
 
     if (stopping && _has_stopped()){
         _phase = 6;
         _motion_start_iter = _state_iter + 1;
     }
 
-    if(curr_iter >= 30000 || _done){
+    if(curr_iter > 11000 + additional_step || _done){
 
         #if DEBUG
         // debug_file.open("states_actions.txt", std::ios_base::app);
@@ -1210,7 +1471,7 @@ void Recovering::_update_state(){
     }
 
 
-    if(fabs(p_error) > 1){
+    if(fabs(p_error) > 0.65){
         _done = true;
         std::cout << "[DONE] I AM DEAD !!!" << std::endl;
     }
@@ -1295,7 +1556,7 @@ void Recovering::_update_state_buffer(){
 
 void Recovering::_update_basic_leg_actions(const int & curr_iter){
 
-    period_half = PI/param_b;
+    period_half = PI/std::max(param_b, 0.00001f);
     // sub_t = curr_iter % (2*period_half);
     sub_t = fmod(curr_iter, (2*period_half));
 
@@ -1313,9 +1574,12 @@ void Recovering::_update_basic_leg_actions(const int & curr_iter){
         float theta2_l_delta =  - param_a*(-sin(param_b*curr_iter-PI/2)/2+0.5);
 
         if (param_b*curr_iter < PI) {
-        pos_impl[2] << 0, theta1 - theta2_r_delta, theta2 + theta2_r_delta;
-        // pos_impl[2] << 0, _theta1_hat(theta2 + theta2_r_delta), theta2 + theta2_r_delta;
-        pos_impl[3] << 0, theta1, theta2;
+            // std::cout << "[DEBUG] pos_impl: theta1 - " << theta2_r_delta << " , theta2 + " <<  theta2_r_delta << std::endl;
+            // std::cout << "[DEBUG] pos_impl: " << theta1 - theta2_r_delta << " , " <<  theta2 + theta2_r_delta << std::endl;
+            // std::cout << "[DEBUG] pos_impl[2][2] SO FAR: " << pos_impl[2][2] << std::endl;
+            pos_impl[2] << 0, theta1 - theta2_r_delta, theta2 + theta2_r_delta;
+            // pos_impl[2] << 0, _theta1_hat(theta2 + theta2_r_delta), theta2 + theta2_r_delta;
+            pos_impl[3] << 0, theta1, theta2;
         } else {
             // pos_impl[2] << 0, _theta1_hat(theta2 - param_a*(sin(param_b*curr_iter-PI/2)/2+0.5)), theta2 - param_a*(sin(param_b*curr_iter-PI/2)/2+0.5);
             pos_impl[2] << 0, theta1 - theta2_r_delta, theta2 + theta2_r_delta;
@@ -1347,8 +1611,9 @@ void Recovering::_update_basic_leg_actions(const int & curr_iter){
         }    
     } else if (gait == Gait::rose){
 
-        assert(delta_x != 0);
-        a_rose = delta_x;
+        // assert(delta_x != 0);
+
+        a_rose = std::max(delta_x, 0.00001f);
         k_rose = 4*param_a/a_rose;
 
         if (sub_t < period_half) {
@@ -1420,14 +1685,16 @@ void Recovering::_update_basic_leg_actions(const int & curr_iter){
     }
 
     // std::cout << "AND  (" << x_togo_l << ", " << y_togo_l << ")" << std::endl;
-
-    _IK(x_togo_r, y_togo_r, pos_impl[2][1], pos_impl[2][2]);
-    _IK(x_togo_l, y_togo_l, pos_impl[3][1], pos_impl[3][2]);
+    if (gait != Gait::line){
+        _IK(x_togo_r, y_togo_r, pos_impl[2][1], pos_impl[2][2]);
+        _IK(x_togo_l, y_togo_l, pos_impl[3][1], pos_impl[3][2]);
+    }
+    
 
     // std::cout << "SEND TO IK:  (" << x_togo_r << ", " << y_togo_r << ")   GOT:  (" << pos_impl[2][1] << ", " << pos_impl[2][2] << ") " << std::endl;
 
     #if DEBUG
-    debug_info_stream << "BASIC ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
+    // debug_info_stream << "BASIC ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << "\n";
     #endif
 
     
@@ -1456,7 +1723,7 @@ void Recovering::_process_leg_offsets(const int & curr_iter){
     // pos_impl[3][2] = (1-agent_factor)*pos_impl[3][2] + agent_factor*(pos_impl[3][2] + inter_leg_offsets[3]);
 
     #if DEBUG
-    debug_info_stream << "OFFSET: [" <<  inter_leg_offsets[0] << ", " <<  inter_leg_offsets[1] << ", " <<  inter_leg_offsets[2] << ", "<<  inter_leg_offsets[3] << "] " << "\n";
+    // debug_info_stream << "OFFSET: [" <<  inter_leg_offsets[0] << ", " <<  inter_leg_offsets[1] << ", " <<  inter_leg_offsets[2] << ", "<<  inter_leg_offsets[3] << "] " << "\n";
     #endif
 
 }
@@ -1709,6 +1976,9 @@ void Recovering::_Bound(const int & curr_iter){
         for(size_t i(2); i < 4; ++i)
             initial_jpos[i] = initial_jpos[i] - back_offset;
 
+        // initial_jpos[3] = initial_jpos[3] - backl_offset;
+        // initial_jpos[4] = initial_jpos[4] - back_offset;
+
         prepare_jpos[0] << 0.0f, -0.75f, 1.5f;
         prepare_jpos[1] << 0.0f, -0.75f, 1.5f;
         prepare_jpos[2] << 0.0f, -0.62f, 1.3f;
@@ -1807,6 +2077,635 @@ void Recovering::_BoundToStand(const int & curr_iter){
 
 }
 
+
+void Recovering::_ClimbPre(const int & curr_iter){
+
+    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+    
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        std::cout << "================== CALCULATING IK ====================" << std::endl;
+        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+        pre_climb_th1 = theta1 + 0.1;
+
+        _arms_IK(0.1, 0, pre_climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << 0.1 << ", AB: " << 0 << ", TH1: " << pre_climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+        if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+            std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        else
+            std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+        
+        std::cout << "======================================================" << std::endl;
+
+    }
+
+    // pos_impl[0] << -0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+    // pos_impl[1] << 0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+    pos_impl[0] << 0.0f, climb_th1_p, climb_th2_p;
+    pos_impl[1] << 0.0f, climb_th1_p, climb_th2_p;
+    pos_impl[2] << 0.0f, pre_climb_th1, theta2;
+    pos_impl[3] << 0.0f, pre_climb_th1, theta2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2500+2500){
+        _phase = 15; // phase 14 is skipped
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+
+void Recovering::_ClimbPre1(const int & curr_iter){
+
+    // THIS STEP IS SKIPPED !!!
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+        _arms_IK(0.1, climb_th1_p, climb_th2_p);
+
+        std::cout << "==================INITIAL POSE====================" << std::endl;
+        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+        std::cout << "initial_jpos[2][1]: " << initial_jpos[2][1] << "  theta1: " << theta1 << std::endl;
+        std::cout << "initial_jpos[2][2]: " << initial_jpos[2][2] << "  theta2: " << theta2 << std::endl;
+        std::cout << "initial_jpos[0][1]: " << initial_jpos[0][1] << "  PI/2: " << PI/2 << std::endl;
+
+        std::cout << "=======================================================" << std::endl;
+    }
+
+    // pos_impl[0] << -0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+    // pos_impl[1] << 0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+    pos_impl[0] << -arm_ab, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab, climb_th1_p, climb_th2_p;
+    pos_impl[2] << 0.0f, initial_jpos[2][1], initial_jpos[2][2];
+    pos_impl[3] << 0.0f, initial_jpos[3][1], initial_jpos[3][2];
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2500+2500){
+        _phase = 15;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+// void Recovering::_ClimbBAK(const int & curr_iter){
+
+//     // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+//     if (curr_iter==0){
+//         for(size_t i(0); i < 4; ++i)
+//           initial_jpos[i] = this->_legController->datas[i].q;
+//         for(size_t i(0); i < 2; ++i)
+//             initial_jpos[i] = initial_jpos[i] - front_offset;
+//         for(size_t i(2); i < 4; ++i)
+//             initial_jpos[i] = initial_jpos[i] - back_offset;
+
+//         climb_th1 = (initial_jpos[2][1] + initial_jpos[3][1]) / 2;
+        
+
+//         std::cout << "==================CLIMB====================" << std::endl;
+//         // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+//         std::cout << "initial_jpos[2][1]: " << initial_jpos[2][1] << "  theta1: " << theta1 << std::endl;
+//         std::cout << "initial_jpos[2][2]: " << initial_jpos[2][2] << "  theta2: " << theta2 << std::endl;
+//         std::cout << "initial_jpos[0][1]: " << initial_jpos[0][1] << "  PI/2: " << PI/2 << std::endl;
+
+//         std::cout << "============================================" << std::endl;
+//     }
+
+
+//     if (climb_x < climb_x_set) 
+//         // initial climb_x: 0.1
+//         climb_x += 0.0001;
+
+//     if (arm_ab < arm_ab_set) 
+//         arm_ab += 0.0005;
+
+//     float foracos;
+
+//     for (int i=0; i<80; i++){
+//         foracos = (pow(climb_x, 2) + pow(_head_height(), 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+//         if (!(foracos < 0.98 && foracos > -0.98))
+//             climb_th1 += 0.0006;
+//         else
+//             break;
+//     }
+
+//     if (!(foracos < 0.98 && foracos > -0.98))
+//         std::cout << "SHIT... THE IK WILL NOT BE SOLVED FOR X = " << climb_x << " AND AB = " << arm_ab << ",  foracos: " << foracos << std::endl;
+
+//     if (gamma_ - climb_th1 - initial_jpos[3][2] + climb_th1_p + climb_th2_p - PI > 0)
+//         std::cout << "FUCK!  THE ROBOT IS USING ITS ELBOW TO CLIMB..." << std::endl;
+
+//     _arms_IK(climb_x, climb_th1_p, climb_th2_p);
+
+//     std::cout << "[DEBUG] TH1_P: " << climb_th1_p <<  " TH2_P: " << climb_th2_p  <<  " TH1: " << climb_th1 << " TH2: " << theta2 << std::endl; 
+
+//     // pos_impl[0] << -0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+//     // pos_impl[1] << 0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+//     pos_impl[0] << -arm_ab, climb_th1_p, climb_th2_p;
+//     pos_impl[1] << arm_ab, climb_th1_p, climb_th2_p;
+//     pos_impl[2] << 0.0f, climb_th1, initial_jpos[2][2];
+//     pos_impl[3] << 0.0f, climb_th1, initial_jpos[3][2];
+
+
+
+//     if (_within_limits()){
+//         for(size_t leg(0); leg<4; ++leg){
+//             _Step(curr_iter, 0, 
+//             leg, initial_jpos[leg], pos_impl[leg]);
+//         } 
+
+//     } else {
+//         _phase = -911;
+//         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+//     }
+
+    
+
+
+
+//     if(curr_iter >= 3500){
+//         _phase = 16;
+//         _motion_start_iter = _state_iter+1;
+//     } 
+
+// }
+
+void Recovering::_Climb(const int & curr_iter){
+
+    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1 = 0.1;
+        
+
+        std::cout << "================== CALCULATING IK ====================" << std::endl;
+        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+        _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << climb_x_set << ", AB: " << arm_ab_set << ", TH1: " << climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+        if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+            std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        else
+            std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+        
+        std::cout << "================== CALCULATING AB ====================" << std::endl;
+
+        float delta_h = ab_y*tan(leg_ab_support);
+        float delta_h_l = delta_h;  //long one: keep the same as that in 0 roll case, since long the long one is not easy
+        float delta_h_r = delta_h + sin(climb_roll)*torso_y;  // this is the value of length to be shortened
+        head_height_curr = _head_height(climb_th1, theta2, arm_ab_set, table_global)*cos(arm_ab_set);
+        butt_height_curr = _butt_height(theta2);
+        delta_th_long =  _delta_th(butt_height_curr, delta_h_l);
+        delta_th_shorten =  _delta_th(butt_height_curr, -delta_h_r);
+
+        // IK version of lowering the right arm
+        _arms_IK(climb_x_set, arm_ab_set + arm_ab_delta, climb_th1, theta2, table_global + sin(climb_roll)*torso_y, climb_th1_p_r, climb_th2_p_r);
+
+
+        // delta_th =  _delta_th(butt_height_curr, delta_h);
+        std::cout << "    THEORETICAL HEAD HEIGHT: " << head_height_curr << std::endl;
+        std::cout << "    THEORETICAL BUTT HEIGHT: " << butt_height_curr << std::endl;
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    LEGS AB: " << leg_ab_support << ", DELTA H(L): " << delta_h_l << ", DELTA H(R): " << delta_h_r << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout  << "   L-DELTA TH: " << delta_th_long << ", L-TH2: " << climb_th1 - delta_th_long  << ", L-TH1: " << theta2 + delta_th_long << std::endl;
+        std::cout  << "   R-DELTA TH: " << delta_th_shorten << ", R-TH2: " << climb_th1 + delta_th_shorten  << ", R-TH1: " << theta2 - delta_th_shorten << std::endl;
+        // LEFT LEG BECOMES HIGHER, RIGHT LEG BECOMES LOWER
+
+
+        std::cout << "======================================================" << std::endl;
+
+        // head_height_curr = (_head_height(climb_th1, theta2, arm_ab_set, table_global) + table_global)*cos(arm_ab_set) - table_global;
+    }
+
+
+    pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p_r, climb_th2_p_r;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[2] << 0.0f, climb_th1, theta2;
+    // pos_impl[3] << 0.0f, climb_th1, theta2;
+    pos_impl[2] << leg_ab_support, climb_th1 + delta_th_shorten + 0.1, theta2 - delta_th_shorten;  // R: shorten
+    pos_impl[3] << leg_ab_support, climb_th1 + delta_th_long + 0.1, theta2 - delta_th_long;  // L: long
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 2500){
+        _phase = 17; // _Climb2 (test)
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_Climb1(const int & curr_iter){
+
+    // lift the left hind leg, rotate the right hind leg inside, stretch the right front leg further
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+
+    // pos_impl[0] << -arm_ab_set - 0.0, initial_jpos[0][1], initial_jpos[0][2];
+    // pos_impl[1] << arm_ab_set, initial_jpos[1][1], initial_jpos[1][2];
+    // pos_impl[2] << leg_ab_support, initial_jpos[2][1], initial_jpos[2][2];
+    // pos_impl[3] << leg_ab_support, initial_jpos[2][1] + 0.5, initial_jpos[2][2] - 0.5;
+
+    pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << leg_ab_support, climb_th1 + delta_th_shorten, theta2 - delta_th_shorten;  // R: shorten
+    pos_impl[3] << leg_ab_support, climb_th1 + delta_th_long + 1, theta2 - delta_th_long - 1;  // L: long
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 999999){
+        _phase = 17;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_Climb2(const int & curr_iter){
+
+    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+
+    // pos_impl[0] << -arm_ab_set - 0.0, initial_jpos[0][1], initial_jpos[0][2];
+    // pos_impl[1] << arm_ab_set, initial_jpos[1][1], initial_jpos[1][2];
+    // pos_impl[2] << leg_ab_support, initial_jpos[2][1], initial_jpos[2][2];
+    // pos_impl[3] << 1.3f, initial_jpos[2][1] + 0.5, initial_jpos[2][2] - 0.5;
+
+    pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p_r, climb_th2_p_r;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << leg_ab_support, climb_th1 + delta_th_shorten + 0.1, theta2 - delta_th_shorten;  // R: shorten
+    pos_impl[3] << leg_ab_lift, climb_th1 + delta_th_long + 0.1 + 0.5 , theta2 - delta_th_long - 0.5;  // L: long
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500){
+        _phase = 18;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_Climb3(const int & curr_iter){
+
+    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        std::cout << "================== CALCULATING IK (HIND LEGS) ====================" << std::endl;
+
+        float foot_up_x = 0.28;
+
+        // DEBUG:
+        leg_ab_touch = 1.0;
+        ////////
+        _update_rpy();
+        pitch = rpy[1];
+        _legs_IK(foot_up_x, leg_ab_touch, head_height_curr, pitch, climb_up_th1, climb_up_th2);
+
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << foot_up_x << ", AB: " << leg_ab_touch << ", HEAD HEIGHT: " << head_height_curr << ", PITCH: "<< pitch << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1: " << climb_up_th1 << ", TH2: " << climb_up_th2 << std::endl;
+
+        if (climb_up_th2 > 2.0)
+            std::cout << "    OH... THE STICK WOULD BE SQUASHED!" << std::endl;
+
+        // if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+        //     std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        // else
+        //     std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+        
+        std::cout << "==================================================================" << std::endl;
+        
+    }
+
+
+    // pos_impl[0] << -arm_ab_set - 0.0, initial_jpos[0][1], initial_jpos[0][2];
+    // pos_impl[1] << arm_ab_set, initial_jpos[1][1], initial_jpos[1][2];
+    pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p_r, climb_th2_p_r;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << leg_ab_support, initial_jpos[2][1], initial_jpos[2][2];
+    // pos_impl[3] << leg_ab_lift, initial_jpos[2][1] + 0.5 + 0.8, initial_jpos[2][2] - 0.5;
+    // pos_impl[3] << leg_ab_lift, -0.1f, 2.0f;
+    pos_impl[3] << leg_ab_lift, climb_up_th1, climb_up_th2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 1500){
+        _phase = 19;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_Climb4(const int & curr_iter){
+
+    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+
+    pos_impl[0] << -arm_ab_set, initial_jpos[0][1], initial_jpos[0][2];
+    pos_impl[1] << arm_ab_set, initial_jpos[1][1], initial_jpos[1][2];
+    pos_impl[2] << 0, initial_jpos[2][1], initial_jpos[2][2];
+    // pos_impl[3] << leg_ab_touch, initial_jpos[2][1] + 0.5 + 0.8, initial_jpos[2][2] - 0.5;
+    pos_impl[3] << leg_ab_touch, climb_up_th1, climb_up_th2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 1000){
+        _phase = 21; // _Pull
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+// void Recovering::_Climb5(const int & curr_iter){
+
+//     // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+
+//     if (curr_iter==0){
+//         for(size_t i(0); i < 4; ++i)
+//           initial_jpos[i] = this->_legController->datas[i].q;
+//         for(size_t i(0); i < 2; ++i)
+//             initial_jpos[i] = initial_jpos[i] - front_offset;
+//         for(size_t i(2); i < 4; ++i)
+//             initial_jpos[i] = initial_jpos[i] - back_offset;
+
+//         // climb_th1 = (initial_jpos[2][1] + initial_jpos[3][1]) / 2;
+//         // climb_th1 should be defined _Climb1
+
+//         std::cout << "================== CALCULATING IK ====================" << std::endl;
+//         // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+//         _arms_IK(climb_x_set - 0.1, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+
+//         std::cout << "    [INPUT] " << std::endl;
+//         std::cout << "    X: " << climb_x_set - 0.1<< ", AB: " << arm_ab_set << ", TH1: " << climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global <<  std::endl;
+//         std::cout << "    [OUTPUT] " << std::endl;
+//         std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+//         if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+//             std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+//         else
+//             std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+        
+//         std::cout << "======================================================" << std::endl;
+        
+        
+//     }
+
+
+//     pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+//     pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+//     pos_impl[2] << 0, initial_jpos[2][1], initial_jpos[2][2];
+//     pos_impl[3] << leg_ab_touch, initial_jpos[2][1] + 0.5 + 0.8, initial_jpos[2][2] - 0.5;
+
+//     if (_within_limits()){
+//         for(size_t leg(0); leg<4; ++leg){
+//             _Step(curr_iter, 2000, 
+//             leg, initial_jpos[leg], pos_impl[leg]);
+//         } 
+
+//     } else {
+//         _phase = -911;
+//         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+//     }
+
+
+//     if(curr_iter >= 999999){
+//         _phase = -1;
+//         _motion_start_iter = _state_iter+1;
+//     } 
+
+// }
+
+void Recovering::_Pull(const int & curr_iter){
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1 = 0.1;
+        
+
+        std::cout << "================== CALCULATING IK ====================" << std::endl;
+        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+        _arms_IK(climb_x_set - 0.1, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << climb_x_set - 0.1 << ", AB: " << arm_ab_set << ", TH1: " << climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+        if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+            std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        else
+            std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+
+        std::cout << "================== CALCULATING IK (HIND LEGS) ====================" << std::endl;
+
+        float foot_up_x = 0.28;
+
+        // DEBUG:
+        leg_ab_touch = 1.0;
+        ////////
+        _update_rpy();
+        pitch = rpy[1];
+        _legs_IK(foot_up_x - 0.1, leg_ab_touch, head_height_curr, pitch, climb_up_th1, climb_up_th2);
+
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << foot_up_x - 0.1 << ", AB: " << leg_ab_touch << ", HEAD HEIGHT: " << head_height_curr << ", PITCH: "<< pitch << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1: " << climb_up_th1 << ", TH2: " << climb_up_th2 << std::endl;
+
+        if (climb_up_th2 > 2.0)
+            std::cout << "    OH... THE STICK WOULD BE SQUASHED!" << std::endl;
+
+        // if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+        //     std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        // else
+        //     std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+        
+        std::cout << "==================================================================" << std::endl;
+
+    }
+
+
+    // pos_impl[0] << -arm_ab_set - 0.0, initial_jpos[0][1], initial_jpos[0][2];
+    // pos_impl[1] << arm_ab_set, initial_jpos[1][1], initial_jpos[1][2];
+    // pos_impl[2] << leg_ab_support, initial_jpos[2][1], initial_jpos[2][2];
+    // pos_impl[3] << leg_ab_support, initial_jpos[2][1] + 0.5, initial_jpos[2][2] - 0.5;
+
+    pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << 0, initial_jpos[2][1], initial_jpos[2][2];
+    pos_impl[3] << leg_ab_touch, climb_up_th1, climb_up_th2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 999999){
+        _phase = 17;
+        _motion_start_iter = _state_iter+1;
+    } 
+    
+
+    
+}
+
 void Recovering::_Step(
     const size_t & curr_iter, size_t max_iter, int leg, 
     const Vec3<float> & ini, const Vec3<float> & fin){
@@ -1832,18 +2731,34 @@ void Recovering::_Step(
             //     std::cout << "[DEBUG] COMMAND TO JOINT[0][1]: "<< inter_pos[1] << std::endl;
             // }
             // #endif
-        else
+        // else if (leg == 3)
+        //     inter_pos = a * ini + b * fin + backl_offset;
+        else 
             inter_pos = a * ini + b * fin + back_offset;
+
+        // if (leg == 0)
+        //     std::cout << "[DEBUG] LEG 0: " << inter_pos[0] << ", " << inter_pos[1] << ", " << inter_pos[2] << std::endl;
+
+        
 
     } else {
         if (leg == 0 || leg == 1)
             inter_pos = fin + front_offset;
+        // else if (leg == 3)
+        //     inter_pos = fin + backl_offset;
         else
             inter_pos = fin + back_offset;
     }
 
     // if (leg == 0)
     //     std::cout << "[DEBUG] INTER_POS[0][1]: " << a * ini[1] + b * fin[1] << " + "<< front_offset[1] << " = " <<  inter_pos[1] << std::endl;
+
+    //  if (leg == 1)
+    //     std::cout << "[DEBUG] INTER_POS[1]: " << inter_pos[0] << ", " << inter_pos[1] << ", " << inter_pos[2] << std::endl;
+    #if !DEBUG
+    if (leg == 2)
+        inter_pos[2] += 0.02;   // FIX THE FUCKING KNEE ERROR
+    #endif
 
     Vec3<float> vec3;
     // vec3 << 0.0, -20.0, 20.0;
@@ -2123,12 +3038,73 @@ void Recovering::_update_reward(){
     if (reach_limit) limit_cost = 0.1;
     else limit_cost = 0;
     action_cost = 0.25 * std::max({fabs(action[0]), fabs(action[1]), fabs(action[2]), fabs(action[3])});
-    reward = _stateEstimator->getResult().position[1] - limit_cost + _stateEstimator->getResult().position[0] - action_cost + 0.5;
+    reward = _stateEstimator->getResult().position[2] - limit_cost + _stateEstimator->getResult().position[0] - action_cost + 0.5;
+    episode_return_h += _stateEstimator->getResult().position[2];
+    episode_return_limit_cost += limit_cost;
+    episode_return_x += _stateEstimator->getResult().position[0];
+    episode_return_action_cost += action_cost;
+    episode_return_alive += 0.5;
     episode_return += reward;
-    std::cout << "[RETURN] REWARD: " << reward << "    RETURN: " << episode_return << std::endl;; 
+    std::cout << "[RETURN] REWARD: " << _stateEstimator->getResult().position[2] << " - " << limit_cost << " + " << _stateEstimator->getResult().position[0] << " - " << action_cost << " + 0.5 = " << reward << "    RETURN: " << episode_return << std::endl;; 
 }
 
+void Recovering::_log_return(){
+    std::cout << "[RETURN] ==================  FINAL RETURN: " << episode_return << "  ==================" << std::endl;
 
+    if (!has_logged){
+
+        std::ofstream debug_file;
+        std::string DAM_path_str(DAM_path);
+
+        if (progressing)
+            debug_file.open(DAM_path_str + "robot_returns_pro_prog", std::ios_base::app);
+        else
+            debug_file.open(DAM_path_str + "robot_returns_pro_wprog", std::ios_base::app);
+
+        if (!debug_file)
+          std::cout << "Can't open output file " << std::endl;
+
+        
+        // std::ostringstream debug_info_stream;
+        // debug_info_stream << episode_return << "\n";
+        // debug_file << debug_info_stream.str();
+
+        debug_file << episode_return_h << " " << episode_return_limit_cost << " " << episode_return_x << " " << episode_return_action_cost << " " << episode_return_alive << " " << episode_return << "\n";
+        // debug_file << episode_return << "\n";
+
+        debug_file.close();
+
+        if (progressing)
+            std::cout << "[RETURN] LOGGED TO " << DAM_path_str + "robot_returns_pro_prog" << std::endl;
+        else
+            std::cout << "[RETURN] LOGGED TO " << DAM_path_str + "robot_returns_pro_wprog" << std::endl;
+
+
+        has_logged = true;
+    }
+
+}
+
+bool Recovering::_within_limits(){
+
+
+    for (size_t leg(0); leg<4; ++leg){
+        if (pos_impl[leg][0] < -PI/2 || pos_impl[leg][0] > PI/2 || std::isnan(pos_impl[leg][0])){    
+            std::cout << "[SECURITY] JOINT 0 OF LEG " << leg << " GOT A CRAZY ACTION: "<< pos_impl[leg][0] << "\n";
+            return false;
+        }
+        else if (pos_impl[leg][1] < -PI || pos_impl[leg][1] > PI || std::isnan(pos_impl[leg][1])){    
+            std::cout << "[SECURITY] JOINT 1 OF LEG " << leg << " GOT A CRAZY ACTION: "<< pos_impl[leg][1] << "\n";
+            return false;
+        }
+        else if (pos_impl[leg][2] < -2.7 || pos_impl[leg][2] > 2.7 || std::isnan(pos_impl[leg][2])){    
+            std::cout << "[SECURITY] JOINT 2 OF LEG " << leg << " GOT A CRAZY ACTION: "<< pos_impl[leg][2] << "\n";
+            return false;
+        }
+    }
+
+    return true;
+}
 
 #if DEBUG
 void Recovering::wait_for_simulation_state(){

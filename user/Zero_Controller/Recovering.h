@@ -14,6 +14,8 @@
 #include <iomanip>
 #include <initializer_list>
 #include <fstream>
+#include <glob.h>
+#include <cmath>
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
@@ -116,6 +118,8 @@ class Recovering {
     const float PI = 3.14159;
 
     void _update_action();
+
+    char* DAM_path;
 
  private:
     // Keep track of the control iterations
@@ -240,6 +244,30 @@ class Recovering {
     void _InverseJustStandUp(const int & curr_iter);
     bool _has_stopped();
     void _BoundToStand(const int & curr_iter);
+    void _ClimbPre(const int & curr_iter);
+    void _ClimbPre1(const int & curr_iter);
+    void _Climb(const int & curr_iter);
+    void _Climb1(const int & curr_iter);
+    void _Climb2(const int & curr_iter);
+    void _Climb3(const int & curr_iter);
+    void _Climb4(const int & curr_iter);
+    void _Climb5(const int & curr_iter);
+    void _ClimbBAK(const int & curr_iter);
+    void _Pull(const int & curr_iter);
+    void _log_return();
+    bool _within_limits();
+
+    float _beta();
+    float _beta(const float & th2);
+    float _alpha();
+    float _alpha(const float & th1, const float & th2);
+    float _head_height();
+    float _head_height(const float & th1, const float & th2, const float & arm_ab_arg, const float & table);
+    void _arms_IK(const float & x, float & th1_prime, float & th2_prime);
+    void _arms_IK(const float & x, const float & ab, const float & th1, const float & th2, const float & table, float & th1_prime, float & th2_prime);
+    void _legs_IK(const float & x, const float & ab, const float & head_height, const float & pitch_arg, float & th1, float & th2);
+    float _delta_th(const float & butt_h, const float & delta_h);
+    float _butt_height(const float & th2);
 
     // Create the cartesian P gain matrix
     Mat3<float> kpMat;
@@ -268,15 +296,20 @@ class Recovering {
     double k_ = 0.516;
 
     const double gamma_ = 0.97213, l_ = 0.184, a_ = 0.395, b_ = 0.215, c_ = 0.215;
+    const double ab_y = 0.08, torso_y = 0.1;
     #if !DEBUG
     const float k_final = 0.72; //0.69; // If the CoM is too forward, increase this value ~ A good choice in theory: 0.61
     #else
     const float k_final = 0.8;
     #endif
 
-    const float front_hip_offset = 0.11, back_hip_offset = -0.155;
+    // const float front_hip_offset = 0.11, back_hip_offset = -0.155;  OLD
+    // const float front_hip_offset = 0.29, back_hip_offset = -0.2;  NEW
+    // const float front_hip_offset = 0.11, back_hip_offset = -0.2;  // OLD FRONT, NEW HIND
+    const float front_hip_offset = 0.11, back_hip_offset = -0.18;  // OLD FRONT, NEW HIND, TESTING
     Vec3<float> front_offset;
     Vec3<float> back_offset;
+    Vec3<float> backl_offset;
 
     const int num_sub_steps = 10;
 
@@ -340,6 +373,11 @@ class Recovering {
     // reward calculator
     float reward = 0.0;
     float episode_return = 0.0;
+    float episode_return_h = 0.0;
+    float episode_return_limit_cost = 0.0;
+    float episode_return_x = 0.0;
+    float episode_return_action_cost = 0.0;
+    float episode_return_alive = 0.0;
     float limit_cost = 0.0;
     float action_cost = 0.0;
     bool reach_limit = false;
@@ -347,9 +385,27 @@ class Recovering {
 
     bool agent_enable = false; // determined by whether the model exists
 
+    bool has_logged = false;
+
+    float pre_climb_th1;
+    float climb_th1_p, climb_th2_p, climb_th1, climb_th1_p_r, climb_th2_p_r;
+    float climb_x = 0.1;
+    float arm_ab = 0.0;
+    const float table_global = 0.338; //0.34; // 0.36
+    const float climb_x_set = 0.32;// 0.25;
+    const float arm_ab_set = 0.8; // 0.75;
+    const float leg_ab_support = 0.21; // 0.36;
+    const float leg_ab_lift = 1.3;
+    float leg_ab_touch = 0.98;
+    float head_height_curr;
+    float butt_height_curr;
+    float climb_up_th1, climb_up_th2;
+    float delta_th, delta_th_long, delta_th_shorten;
+    const float climb_roll = 0.2, arm_ab_delta = 0.2; 
+
     // #if !DEBUG
     // Environment parameters
-    const bool walk_enable = true;
+    const bool walk_enable = false;
     const float agent_factor = 1.0;
     const ActionMode action_mode = ActionMode::residual;
     const LegActionMode leg_action_mode = LegActionMode::hips_offset;
@@ -366,8 +422,11 @@ class Recovering {
     const bool progressing = true;
 
     const unsigned int error_buffer_size = 15;
-    const float arm_pd_multiplier = 1;
+    const float arm_pd_multiplier = 1.0;
     const unsigned int state_buffer_size = 10;
+    const int additional_step = 10;  // FOR DEBUGGING
+
+    const float fix_leg7 =  0;
 
    //  #else
    //  // Environment parameters
@@ -403,9 +462,9 @@ class Recovering {
     std::vector<float> bullet_q = std::vector<float>(12, 0);
     std::vector<float> bullet_orientation = std::vector<float>(4, 0);
 
-    std::ofstream debug_file;
-    std::vector<std::string> debug_info;
-    std::ostringstream debug_info_stream;
+   //  std::ofstream debug_file;
+   //  std::vector<std::string> debug_info;
+   //  std::ostringstream debug_info_stream;
 
     const std::string socket_data{"World"};
     zmq::message_t request;

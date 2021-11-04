@@ -47,11 +47,21 @@ void Training_Controller::runController(){
     char* walking_conf_dir_full = new char[strlen(homeDir) + strlen(walk_conf) + 1 + 1];
     strcpy(walking_conf_dir_full, homeDir);
     strcat(walking_conf_dir_full, walk_conf);
-    const char* param_conf = "/DAM/param_opt.conf"; 
-    char* param_conf_dir_full = new char[strlen(homeDir) + strlen(param_conf) + 1 + 1];
-    strcpy(param_conf_dir_full, homeDir);
-    strcat(param_conf_dir_full, param_conf);
 
+    // glob_t globbuf;
+    // const char* dam_folder = "/DAM*/"; 
+    // char* dam_dir_full = new char[strlen(homeDir) + strlen(dam_folder) + 1 + 1];
+    // strcpy(dam_dir_full, homeDir);
+    // strcat(dam_dir_full, "/DAM*/");
+    // glob(dam_dir_full, 0, NULL, &globbuf);
+    // assert(globbuf.gl_pathc == 1);
+    // std::cout << "FOUND " << globbuf.gl_pathv[0] << std::endl;
+    // recovering.DAM_path = globbuf.gl_pathv[0];
+
+    const char* param_conf = "param_opt.conf"; 
+    char* param_conf_dir_full = new char[strlen(recovering.DAM_path) + strlen(param_conf) + 1 + 1];
+    strcpy(param_conf_dir_full, recovering.DAM_path);
+    strcat(param_conf_dir_full, param_conf);
 
     std::ifstream stand_config(stand_conf_dir_full);
     std::vector<float> data;
@@ -142,6 +152,8 @@ void Training_Controller::runController(){
     for (unsigned int i=0; i<recovering.param_opt.size(); i++)
       recovering.param_opt[i] = param_opt[i];
 
+
+    std::cout << "[LOADER] LOADING CONFIGERATION " << param_conf_dir_full << " ..." << std::endl;
     std::cout << "[LOADER] SUCCESSFULLY LOADED PARAMETERS FOR GAIT " << gait << " !" << std::endl;
     std::cout << "[LOADER] PARAMETERS: [" ;
     for (auto & p : param_opt)
