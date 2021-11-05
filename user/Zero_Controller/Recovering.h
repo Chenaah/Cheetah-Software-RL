@@ -254,6 +254,10 @@ class Recovering {
     void _Climb5(const int & curr_iter);
     void _ClimbBAK(const int & curr_iter);
     void _Pull(const int & curr_iter);
+    void _Pull1(const int & curr_iter);
+    void _Pull2(const int & curr_iter);
+    void _Pull3(const int & curr_iter);
+    void _RecoverOnTable(const int & curr_iter);
     void _log_return();
     bool _within_limits();
 
