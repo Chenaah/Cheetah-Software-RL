@@ -218,9 +218,9 @@ void Recovering::runtest() {
       case 13:
           _ClimbPre(_state_iter - _motion_start_iter);
           break;
-      case 14:
-          _ClimbPre1(_state_iter - _motion_start_iter);
-          break;
+    //   case 14:
+    //       _ClimbPre1(_state_iter - _motion_start_iter);
+    //       break;
       case 15:
           _Climb(_state_iter - _motion_start_iter);
           break;
@@ -245,14 +245,30 @@ void Recovering::runtest() {
       case 22:
           _Pull1(_state_iter - _motion_start_iter);
           break;
-      case 23:
-          _Pull2(_state_iter - _motion_start_iter);
-          break;
+    //   case 23:
+    //       _Pull2(_state_iter - _motion_start_iter);
+    //       break;
       case 24:
           _Pull3(_state_iter - _motion_start_iter);
           break;
       case 25:
           _RecoverOnTable(_state_iter - _motion_start_iter);
+          break;
+
+      case 26:
+          _ClimbM1(_state_iter - _motion_start_iter);
+          break;
+      case 27:
+          _ClimbM1_1(_state_iter - _motion_start_iter);
+          break;
+      case 28:
+          _ClimbM1_2(_state_iter - _motion_start_iter);
+          break;
+      case 29:
+          _ClimbM1_3(_state_iter - _motion_start_iter);
+          break;
+      case 30:
+          _ClimbM1_4(_state_iter - _motion_start_iter);
           break;
       
     }
@@ -343,6 +359,7 @@ void Recovering::jointPDControl(
 
     kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
     // kpMat << 120, 0, 0, 0, 120, 0, 0, 0, 120;
+    // kdMat << 6, 0, 0, 0, 6, 0, 0, 0, 6;
     kdMat << 10, 0, 0, 0, 10, 0, 0, 0, 10;
     // kdMat << 1, 0, 0, 0, 1, 0, 0, 0, 1;
 
@@ -553,12 +570,12 @@ void Recovering::_Prepare(const int & curr_iter){
     // std::cout << "[DEBUG] BACK HIP: " << pre_back_hip <<  " BACK KNEE: " << pre_back_knee << std::endl;
 
     for(size_t i(0); i<4; ++i){
-      _SetJPosInterPts(curr_iter, 1500, i, 
+      _SetJPosInterPts(curr_iter, 2000, i, 
       initial_jpos[i], prepare_jpos[i]);
     }
     
 
-    if(curr_iter >= 1500 + 100){
+    if(curr_iter >= 2000 + 100){
         _phase = 3;
         for(size_t i(0); i<4; ++i){
           this->jointPDControl(i, prepare_jpos[i], zero_vec3);
@@ -602,11 +619,11 @@ void Recovering::_Prepare_2(const int & curr_iter){
 
 
     for(size_t i(0); i<4; ++i){
-      _SetJPosInterPts(curr_iter, 1200, i, 
+      _SetJPosInterPts(curr_iter, 2000, i, 
       initial_jpos[i], prepare_jpos[i]);
     }
 
-    if(curr_iter >= 1200 + 100){
+    if(curr_iter >= 2000 + 100){
         _phase = 4;
         for(size_t i(0); i<4; ++i){
           this->jointPDControl(i, prepare_jpos[i], zero_vec3);
@@ -1320,21 +1337,21 @@ void Recovering::_Walk(const int & curr_iter){
         _motion_start_iter = _state_iter + 1;
     }
 
-    if(curr_iter > 11000 + additional_step || _done){
+    // if(curr_iter > 11000 + additional_step || _done){
 
-        #if DEBUG
-        // debug_file.open("states_actions.txt", std::ios_base::app);
+    //     #if DEBUG
+    //     // debug_file.open("states_actions.txt", std::ios_base::app);
 
-        // if (!debug_file)
-        //   std::cout << "can't open output file" << std::endl;
+    //     // if (!debug_file)
+    //     //   std::cout << "can't open output file" << std::endl;
         
-        // debug_file << debug_info_stream.str();
-        // debug_file.flush();
+    //     // debug_file << debug_info_stream.str();
+    //     // debug_file.flush();
 
-        #endif
-        _phase = -5;
+    //     #endif
+    //     _phase = -5;
 
-    }
+    // }
 
 }
 
@@ -1782,17 +1799,22 @@ void Recovering::_SettleDown(const int & curr_iter){
     for(size_t leg(0); leg<4; ++leg)
         prepare_jpos[leg] = initial_jpos[leg];
 
-    if (fabs(0 - prepare_jpos[0][0]) > 0.02)
-        prepare_jpos[0][0] = initial_jpos[0][0] + (0 - initial_jpos[0][0])/fabs(0 - initial_jpos[0][0])*0.02;
-    if (fabs(-PI/2 - prepare_jpos[0][1]) > 0.02)
-        prepare_jpos[0][1] = initial_jpos[0][1] + (-PI/2 - initial_jpos[0][1])/fabs(-PI/2 - initial_jpos[0][1])*0.02;
-    prepare_jpos[0][2] = _theta2_prime_hat(prepare_jpos[0][1]);
-    
-    if (fabs(0 - prepare_jpos[1][0]) > 0.02)
-        prepare_jpos[1][0] = initial_jpos[1][0] + (0 - initial_jpos[1][0])/fabs(0 - initial_jpos[1][0])*0.02;
-    if (fabs(-PI/2 - prepare_jpos[1][1]) > 0.02)
-        prepare_jpos[1][1] = initial_jpos[1][1] + (-PI/2 - initial_jpos[1][1])/fabs(-PI/2 - initial_jpos[1][1])*0.02;
-    prepare_jpos[1][2] = _theta2_prime_hat(prepare_jpos[1][1]);
+
+    if(curr_iter < 1200){
+
+        if (fabs(0 - prepare_jpos[0][0]) > 0.02)
+            prepare_jpos[0][0] = initial_jpos[0][0] + (0 - initial_jpos[0][0])/fabs(0 - initial_jpos[0][0])*0.02;
+        if (fabs(-PI/2 - prepare_jpos[0][1]) > 0.02)
+            prepare_jpos[0][1] = initial_jpos[0][1] + (-PI/2 - initial_jpos[0][1])/fabs(-PI/2 - initial_jpos[0][1])*0.02;
+        prepare_jpos[0][2] = _theta2_prime_hat(prepare_jpos[0][1]);
+        
+        if (fabs(0 - prepare_jpos[1][0]) > 0.02)
+            prepare_jpos[1][0] = initial_jpos[1][0] + (0 - initial_jpos[1][0])/fabs(0 - initial_jpos[1][0])*0.02;
+        if (fabs(-PI/2 - prepare_jpos[1][1]) > 0.02)
+            prepare_jpos[1][1] = initial_jpos[1][1] + (-PI/2 - initial_jpos[1][1])/fabs(-PI/2 - initial_jpos[1][1])*0.02;
+        prepare_jpos[1][2] = _theta2_prime_hat(prepare_jpos[1][1]);
+
+    }
 
     prepare_jpos[2] << -0.0f, theta1, theta2;
     prepare_jpos[3] << 0.0f, theta1, theta2;
@@ -1807,7 +1829,7 @@ void Recovering::_SettleDown(const int & curr_iter){
         _Step(curr_iter, 0, leg, initial_jpos[leg], prepare_jpos[leg]);
     }
 
-    if(curr_iter >= 1200){  
+    if(curr_iter >= 1200 + 500*30){  
 
         _phase = 7;
         _motion_start_iter = _state_iter + 1;
@@ -2091,7 +2113,7 @@ void Recovering::_BoundToStand(const int & curr_iter){
 
 void Recovering::_ClimbPre(const int & curr_iter){
 
-    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+    // MOVE THE HANDS TO THE HEIGHT OF THE TABLE
     
 
     if (curr_iter==0){
@@ -2107,11 +2129,13 @@ void Recovering::_ClimbPre(const int & curr_iter){
 
         pre_climb_th1 = theta1 + 0.1;
 
-        _arms_IK(0.1, 0, pre_climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+        float table_local = std::max(table_global, 0.338f);
+
+        _arms_IK(0.1, 0, pre_climb_th1, theta2, table_local, climb_th1_p, climb_th2_p);
 
 
         std::cout << "    [INPUT] " << std::endl;
-        std::cout << "    X: " << 0.1 << ", AB: " << 0 << ", TH1: " << pre_climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        std::cout << "    X: " << 0.1 << ", AB: " << 0 << ", TH1: " << pre_climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_local << std::endl;
         std::cout << "    [OUTPUT] " << std::endl;
         std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
 
@@ -2143,59 +2167,63 @@ void Recovering::_ClimbPre(const int & curr_iter){
     }
 
     if(curr_iter >= 2500+2500){
-        _phase = 15; // phase 14 is skipped
+        if (table_global <= leg_height)
+            _phase = 15; 
+        else
+            _phase = 26; 
+
         _motion_start_iter = _state_iter+1;
     } 
 
 }
 
 
-void Recovering::_ClimbPre1(const int & curr_iter){
+// void Recovering::_ClimbPre1(const int & curr_iter){
 
-    // THIS STEP IS SKIPPED !!!
+//     // THIS STEP IS SKIPPED !!!
 
-    if (curr_iter==0){
-        for(size_t i(0); i < 4; ++i)
-          initial_jpos[i] = this->_legController->datas[i].q;
-        for(size_t i(0); i < 2; ++i)
-            initial_jpos[i] = initial_jpos[i] - front_offset;
-        for(size_t i(2); i < 4; ++i)
-            initial_jpos[i] = initial_jpos[i] - back_offset;
-        _arms_IK(0.1, climb_th1_p, climb_th2_p);
+//     if (curr_iter==0){
+//         for(size_t i(0); i < 4; ++i)
+//           initial_jpos[i] = this->_legController->datas[i].q;
+//         for(size_t i(0); i < 2; ++i)
+//             initial_jpos[i] = initial_jpos[i] - front_offset;
+//         for(size_t i(2); i < 4; ++i)
+//             initial_jpos[i] = initial_jpos[i] - back_offset;
+//         _arms_IK(0.1, climb_th1_p, climb_th2_p);
 
-        std::cout << "==================INITIAL POSE====================" << std::endl;
-        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
-        std::cout << "initial_jpos[2][1]: " << initial_jpos[2][1] << "  theta1: " << theta1 << std::endl;
-        std::cout << "initial_jpos[2][2]: " << initial_jpos[2][2] << "  theta2: " << theta2 << std::endl;
-        std::cout << "initial_jpos[0][1]: " << initial_jpos[0][1] << "  PI/2: " << PI/2 << std::endl;
+//         std::cout << "==================INITIAL POSE====================" << std::endl;
+//         // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+//         std::cout << "initial_jpos[2][1]: " << initial_jpos[2][1] << "  theta1: " << theta1 << std::endl;
+//         std::cout << "initial_jpos[2][2]: " << initial_jpos[2][2] << "  theta2: " << theta2 << std::endl;
+//         std::cout << "initial_jpos[0][1]: " << initial_jpos[0][1] << "  PI/2: " << PI/2 << std::endl;
 
-        std::cout << "=======================================================" << std::endl;
-    }
+//         std::cout << "=======================================================" << std::endl;
+//     }
 
-    // pos_impl[0] << -0.0f, -0.1f, _theta2_prime_hat(-0.1f);
-    // pos_impl[1] << 0.0f, -0.1f, _theta2_prime_hat(-0.1f);
-    pos_impl[0] << -arm_ab, climb_th1_p, climb_th2_p;
-    pos_impl[1] << arm_ab, climb_th1_p, climb_th2_p;
-    pos_impl[2] << 0.0f, initial_jpos[2][1], initial_jpos[2][2];
-    pos_impl[3] << 0.0f, initial_jpos[3][1], initial_jpos[3][2];
+//     // pos_impl[0] << -0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+//     // pos_impl[1] << 0.0f, -0.1f, _theta2_prime_hat(-0.1f);
+//     pos_impl[0] << -arm_ab, climb_th1_p, climb_th2_p;
+//     pos_impl[1] << arm_ab, climb_th1_p, climb_th2_p;
+//     pos_impl[2] << 0.0f, initial_jpos[2][1], initial_jpos[2][2];
+//     pos_impl[3] << 0.0f, initial_jpos[3][1], initial_jpos[3][2];
 
-    if (_within_limits()){
-        for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
-            leg, initial_jpos[leg], pos_impl[leg]);
-        } 
+//     if (_within_limits()){
+//         for(size_t leg(0); leg<4; ++leg){
+//             _Step(curr_iter, 2000, 
+//             leg, initial_jpos[leg], pos_impl[leg]);
+//         } 
 
-    } else {
-        _phase = -911;
-        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
-    }
+//     } else {
+//         _phase = -911;
+//         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+//     }
 
-    if(curr_iter >= 2500+2500){
-        _phase = 15;
-        _motion_start_iter = _state_iter+1;
-    } 
+//     if(curr_iter >= 2500+2500){
+//         _phase = 15;
+//         _motion_start_iter = _state_iter+1;
+//     } 
 
-}
+// }
 
 // void Recovering::_ClimbBAK(const int & curr_iter){
 
@@ -2282,7 +2310,7 @@ void Recovering::_ClimbPre1(const int & curr_iter){
 
 void Recovering::_Climb(const int & curr_iter){
 
-    // std::cout << "[DEBUG] TRANFERING TO STANDING UP... (CURR_ITER " << curr_iter << ")" << std::endl;
+    // MOVE THE ARMS TOWARD THE TABLE CENTRE; TILT THE TWO LEGS
 
     if (curr_iter==0){
         for(size_t i(0); i < 4; ++i)
@@ -2292,7 +2320,18 @@ void Recovering::_Climb(const int & curr_iter){
         for(size_t i(2); i < 4; ++i)
             initial_jpos[i] = initial_jpos[i] - back_offset;
 
-        climb_th1 = 0.1;
+        climb_th1 = 0.1; //0.1;
+
+        
+        // std::cout << "[DEBUG] foracos: " << foracos << std::endl;
+        for (int i=0; i < 10; i++){
+            float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+            float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+            if (foracos > -1 && foracos < 1)
+                break;
+            climb_th1 += i*0.1;
+        }
+
         
 
         std::cout << "================== CALCULATING IK ====================" << std::endl;
@@ -2368,6 +2407,261 @@ void Recovering::_Climb(const int & curr_iter){
 
 }
 
+
+void Recovering::_ClimbM1(const int & curr_iter){
+
+    // MOVE THE ARMS TOWARD THE TABLE CENTRE; MODE1: DO NOT TILT THE TWO LEGS
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1 = 0.1; //0.1;
+        climb_x_set = 0.32;
+
+
+        // TRY TO FORGET ABOUT IK......
+
+        // float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+        // float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+        // if (foracos > -1 && foracos < 1)
+
+        for (int i=0; i < 30; i++){
+            _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+            if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI <= 0)
+                break;
+            climb_x_set += i*0.01;
+            // arm_ab_set += i*0.005;
+        }
+
+        std::cout << "================== CALCULATING IK ====================" << std::endl;
+        // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+        _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+        std::cout << "    [INPUT] " << std::endl;
+        std::cout << "    X: " << climb_x_set << ", AB: " << arm_ab_set << ", TH1: " << climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        std::cout << "    [OUTPUT] " << std::endl;
+        std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+        if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+            std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        else
+            std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+
+        // arm_ab_set = 0;
+        // climb_th1_p = -1.5;
+        // climb_th2_p = 2.6;
+
+    }
+
+
+    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[2] << 0.0f, climb_th1, theta2;
+    // pos_impl[3] << 0.0f, climb_th1, theta2;
+    pos_impl[2] << 0, climb_th1 + 0.1, theta2;
+    pos_impl[3] << 0, climb_th1 + 0.1, theta2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500){
+        _phase = 27; 
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_ClimbM1_1(const int & curr_iter){
+    // PHASE 27
+
+    // LIFT THE TWO LEGS TO TWO SIDES
+    // --> SHRINK THE ARMS
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+
+        arm_ab_set = 0;
+        climb_th1_p = -1.5;
+        climb_th2_p = 2.6;
+
+    }
+
+
+    // pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[2] << -1.4f, climb_th1 + 0.1, theta2;
+    // pos_impl[3] << 1.4f, climb_th1 + 0.1, theta2;
+
+    pos_impl[0] << -0, climb_th1_p + 0.3, climb_th2_p;
+    pos_impl[1] << 0, climb_th1_p + 0.3, climb_th2_p;
+    pos_impl[2] << 0, climb_th1 + 0.1, theta2;
+    pos_impl[3] << 0, climb_th1 + 0.1, theta2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2000 + 1000){
+        _phase = 28;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_ClimbM1_2(const int & curr_iter){
+    // PHASE 28
+    // LIFT THE TWO LEGS TO TWO SIDES
+    
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+
+    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << -1.4f, 0, theta2;
+    pos_impl[3] <<  1.4f, 0, theta2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2000){
+        _phase = 29;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+
+void Recovering::_ClimbM1_3(const int & curr_iter){
+    // PHASE 29
+
+    // MOVE THE TWO LEGS TOWARD THE TABLE
+
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+
+        climb_th1 = 0.3;
+        climb_th2 = 1.8;
+
+
+    }
+
+    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << -1.4f, climb_th1, climb_th2;
+    pos_impl[3] << 1.4f, climb_th1, climb_th2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2000 + 1000){
+        _phase = 30;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_ClimbM1_4(const int & curr_iter){
+    // PHASE 30
+
+    // DROP THE TWO LEGS ONTO THE TABLE
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[2] << -1.1f, climb_th1, climb_th2;
+    pos_impl[3] << 1.1f, climb_th1, climb_th2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2000 + 1000){
+        _phase = 25;
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
 // void Recovering::_Climb1(const int & curr_iter){
 
 //     // lift the left hind leg, rotate the right hind leg inside, stretch the right front leg further
@@ -2414,6 +2708,8 @@ void Recovering::_Climb(const int & curr_iter){
 
 void Recovering::_Climb2(const int & curr_iter){
 
+    // LIFT THE LEFT LEG
+
     if (curr_iter==0){
         for(size_t i(0); i < 4; ++i)
           initial_jpos[i] = this->_legController->datas[i].q;
@@ -2433,7 +2729,7 @@ void Recovering::_Climb2(const int & curr_iter){
     pos_impl[0] << -arm_ab_set - arm_ab_delta, climb_th1_p_r, climb_th2_p_r;
     pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
     pos_impl[2] << leg_ab_support, climb_th1 + delta_th_shorten + 0.1, theta2 - delta_th_shorten;  // R: shorten
-    pos_impl[3] << leg_ab_lift, climb_th1 + delta_th_long + 0.1 + 0.5 , theta2 - delta_th_long - 0.5;  // L: long
+    pos_impl[3] << leg_ab_lift, climb_th1 + delta_th_long + 0.1 - 0.5 , theta2 - delta_th_long - 0.5;  // L: long
 
     if (_within_limits()){
         for(size_t leg(0); leg<4; ++leg){
@@ -2447,12 +2743,14 @@ void Recovering::_Climb2(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2500){
+    if(curr_iter >= 2000){
         _phase = 18;
         _motion_start_iter = _state_iter+1;
     } 
 
 }
+
+
 
 void Recovering::_Climb3(const int & curr_iter){
 
@@ -2515,7 +2813,7 @@ void Recovering::_Climb3(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2500 + 1500){
+    if(curr_iter >= 2000){
         _phase = 19;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2541,7 +2839,7 @@ void Recovering::_Climb4(const int & curr_iter){
 
     if (_within_limits()){
         for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
+            _Step(curr_iter, 1000, 
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
 
@@ -2551,7 +2849,7 @@ void Recovering::_Climb4(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2500 + 1000){
+    if(curr_iter >= 1500){
         _phase = 21; // _Pull
         _motion_start_iter = _state_iter+1;
     } 
@@ -2572,10 +2870,21 @@ void Recovering::_Pull(const int & curr_iter){
     }
 
     float delta_stretch = 1.3;
-    pos_impl[0] << -arm_ab_set, climb_th1_p_r - delta_stretch, climb_th2_p_r;
-    pos_impl[1] << arm_ab_set, climb_th1_p - delta_stretch, climb_th2_p;
-    pos_impl[2] << 0, -PI/2, 0;
-    pos_impl[3] << leg_ab_touch, climb_up_th1 - delta_stretch, climb_up_th2;
+    float leh_action_length = 1000;
+    if (table_global <= leg_height){
+        pos_impl[0] << -arm_ab_set, climb_th1_p_r - delta_stretch, climb_th2_p_r;
+        pos_impl[1] << arm_ab_set, climb_th1_p - delta_stretch, climb_th2_p;
+        pos_impl[2] << 0, -PI/2, 0;
+        pos_impl[3] << leg_ab_touch, climb_up_th1 - delta_stretch, climb_up_th2;
+    } else {
+        delta_stretch = 1.6;
+        leh_action_length = 2000;
+        pos_impl[0] << -0, climb_th1_p - delta_stretch, climb_th2_p;
+        pos_impl[1] << 0, climb_th1_p - delta_stretch, climb_th2_p;
+        pos_impl[2] << initial_jpos[2][0], initial_jpos[2][1], initial_jpos[2][2];
+        pos_impl[3] << initial_jpos[3][0], initial_jpos[3][1], initial_jpos[3][2];
+    }
+    
 
     if (_within_limits()){
         for(size_t leg(0); leg<2; ++leg){
@@ -2583,7 +2892,7 @@ void Recovering::_Pull(const int & curr_iter){
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
         for(size_t leg(2); leg<4; ++leg){
-            _Step(curr_iter, 1000, 
+            _Step(curr_iter, leh_action_length, 
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
 
@@ -2593,7 +2902,7 @@ void Recovering::_Pull(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2000){
+    if(curr_iter >= 2000 + 999999){
         _phase = 22;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2637,40 +2946,40 @@ void Recovering::_Pull1(const int & curr_iter){
     
 }
 
-void Recovering::_Pull2(const int & curr_iter){
+// void Recovering::_Pull2(const int & curr_iter){
 
-    if (curr_iter==0){
-        for(size_t i(0); i < 4; ++i)
-          initial_jpos[i] = this->_legController->datas[i].q;
-        for(size_t i(0); i < 2; ++i)
-            initial_jpos[i] = initial_jpos[i] - front_offset;
-        for(size_t i(2); i < 4; ++i)
-            initial_jpos[i] = initial_jpos[i] - back_offset;
+//     if (curr_iter==0){
+//         for(size_t i(0); i < 4; ++i)
+//           initial_jpos[i] = this->_legController->datas[i].q;
+//         for(size_t i(0); i < 2; ++i)
+//             initial_jpos[i] = initial_jpos[i] - front_offset;
+//         for(size_t i(2); i < 4; ++i)
+//             initial_jpos[i] = initial_jpos[i] - back_offset;
 
-    }
+//     }
 
-    float delta_stretch = 1.3;
-    pos_impl[0] << -1.3, climb_th1_p_r - delta_stretch, climb_th2_p_r;
-    pos_impl[1] << 1.3, climb_th1_p - delta_stretch, climb_th2_p;
-    pos_impl[2] << -1.3, initial_jpos[2][1], 0;
-    pos_impl[3] << 1.3, climb_up_th1 - delta_stretch, climb_up_th2;
+//     float delta_stretch = 1.3;
+//     pos_impl[0] << -1.3, climb_th1_p_r - delta_stretch, climb_th2_p_r;
+//     pos_impl[1] << 1.3, climb_th1_p - delta_stretch, climb_th2_p;
+//     pos_impl[2] << -1.3, initial_jpos[2][1], 0;
+//     pos_impl[3] << 1.3, climb_up_th1 - delta_stretch, climb_up_th2;
 
-    if (_within_limits()){
-        for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
-            leg, initial_jpos[leg], pos_impl[leg]);
-        } 
-    } else {
-        _phase = -911;
-        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
-    }
+//     if (_within_limits()){
+//         for(size_t leg(0); leg<4; ++leg){
+//             _Step(curr_iter, 2000, 
+//             leg, initial_jpos[leg], pos_impl[leg]);
+//         } 
+//     } else {
+//         _phase = -911;
+//         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+//     }
 
-    if(curr_iter >= 2000){
-        _phase = 24;
-        _motion_start_iter = _state_iter+1;
-    } 
+//     if(curr_iter >= 2000){
+//         _phase = 24;
+//         _motion_start_iter = _state_iter+1;
+//     } 
     
-}
+// }
 
 void Recovering::_Pull3(const int & curr_iter){
 

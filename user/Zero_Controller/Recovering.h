@@ -19,7 +19,7 @@
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
-#define DEBUG false
+#define DEBUG true
 
 #if DEBUG
 // FOR DEBUGING: 
@@ -253,6 +253,11 @@ class Recovering {
     void _Climb4(const int & curr_iter);
     void _Climb5(const int & curr_iter);
     void _ClimbBAK(const int & curr_iter);
+    void _ClimbM1(const int & curr_iter);
+    void _ClimbM1_1(const int & curr_iter);
+    void _ClimbM1_2(const int & curr_iter);
+    void _ClimbM1_3(const int & curr_iter);
+    void _ClimbM1_4(const int & curr_iter);
     void _Pull(const int & curr_iter);
     void _Pull1(const int & curr_iter);
     void _Pull2(const int & curr_iter);
@@ -392,14 +397,15 @@ class Recovering {
     bool has_logged = false;
 
     float pre_climb_th1;
-    float climb_th1_p, climb_th2_p, climb_th1, climb_th1_p_r, climb_th2_p_r;
+    float climb_th1_p, climb_th2_p, climb_th1, climb_th2, climb_th1_p_r, climb_th2_p_r;
     float climb_x = 0.1;
     float arm_ab = 0.0;
-    const float table_global = 0.338; //0.34; // 0.36
-    const float climb_x_set = 0.32;// 0.25;
-    const float arm_ab_set = 0.8; // 0.75;
+    const float table_global = 0.436; //0.238; //  0.338; //0.34; // 0.36  //TRYING: THE CLIMBING STRATEGY IS DIFFERENT IF THIS VALUE IS HIGHER THAN THE LEH HIGHT
+    const float leg_height = 0.333; 
+    float climb_x_set = 0.32;// 0.25;
+    float arm_ab_set = 0.8; // 0.75;
     const float leg_ab_support = 0.21; // 0.36;
-    const float leg_ab_lift = 1.3;
+    const float leg_ab_lift = 1.4;
     float leg_ab_touch = 0.98;
     float head_height_curr;
     float butt_height_curr;
