@@ -47,6 +47,10 @@ void Training_Controller::runController(){
     char* walking_conf_dir_full = new char[strlen(homeDir) + strlen(walk_conf) + 1 + 1];
     strcpy(walking_conf_dir_full, homeDir);
     strcat(walking_conf_dir_full, walk_conf);
+    const char* climb_conf = "/climbing.conf"; 
+    char* climbing_conf_dir_full = new char[strlen(homeDir) + strlen(climb_conf) + 1 + 1];
+    strcpy(climbing_conf_dir_full, homeDir);
+    strcat(climbing_conf_dir_full, climb_conf);
 
     // glob_t globbuf;
     // const char* dam_folder = "/DAM*/"; 
@@ -153,14 +157,32 @@ void Training_Controller::runController(){
       recovering.param_opt[i] = param_opt[i];
 
 
-    std::cout << "[LOADER] LOADING CONFIGERATION " << param_conf_dir_full << " ..." << std::endl;
+    std::cout << "[LOADER] LOADING WALKING CONFIGERATION " << param_conf_dir_full << " ..." << std::endl;
     std::cout << "[LOADER] SUCCESSFULLY LOADED PARAMETERS FOR GAIT " << gait << " !" << std::endl;
     std::cout << "[LOADER] PARAMETERS: [" ;
     for (auto & p : param_opt)
       std::cout << p << "  ";
     std::cout << "]" << std::endl;
     std::cout << "[LOADER] " << info << std::endl;
+
+    std::ifstream climbing_config(climbing_conf_dir_full);
+    std::vector<float> data4;
+    while(std::getline(climbing_config, temp)){
+        // std::cout << "READ:::::::::::::::" << temp << std::endl;
+        data4.push_back(std::stof(temp));
+        recovering.X_climb.push_back(std::stof(temp));
+    }
+
+    std::cout << "[LOADER] LOADING CLIMBING CONFIGERATION " << climbing_conf_dir_full << " ..." << std::endl;
+    std::cout << "[LOADER] PARAMETERS: [" ;
+    for (auto & p : data4)
+      std::cout << p << "  ";
+    std::cout << "]" << std::endl;
+
+
   }
+
+  
 
   if (guard.global_safe){ //guard.jpos_safe() && guard.global_safe
     recovering.runtest();

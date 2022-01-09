@@ -19,7 +19,7 @@
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
-#define DEBUG true
+#define DEBUG false
 
 #if DEBUG
 // FOR DEBUGING: 
@@ -121,6 +121,8 @@ class Recovering {
 
     char* DAM_path;
 
+    std::vector<float> X_climb;
+
  private:
     // Keep track of the control iterations
     int iter = 0;
@@ -192,6 +194,8 @@ class Recovering {
 
     void jointPDControl(
     int leg, Vec3<float> qDes, Vec3<float> qdDes);
+    void jointPDControl(
+    int leg, Vec3<float> qDes, Vec3<float> qdDes, Mat3<float> kpMat_arg, Mat3<float> kdMat_arg);
     void _FrontLegsActions(const int & curr_iter);
     void _RearLegsActions(const int & curr_iter);
     void _Prepare(const int & curr_iter);
@@ -200,6 +204,10 @@ class Recovering {
     void _Step(
     const size_t & curr_iter, size_t max_iter, int leg, 
     const Vec3<float> & ini, const Vec3<float> & fin);
+    void _Step(
+    const size_t & curr_iter, size_t max_iter, int leg, 
+    const Vec3<float> & ini, const Vec3<float> & fin, 
+    const Mat3<float> kpMat_arg, const Mat3<float> kdMat_arg);
 
     void _MoveHands(const int & curr_iter);
     void _Finish();
@@ -258,11 +266,17 @@ class Recovering {
     void _ClimbM1_2(const int & curr_iter);
     void _ClimbM1_3(const int & curr_iter);
     void _ClimbM1_4(const int & curr_iter);
+    void _ClimbM2(const int & curr_iter);
+    void _ClimbM2_1(const int & curr_iter);
     void _Pull(const int & curr_iter);
     void _Pull1(const int & curr_iter);
     void _Pull2(const int & curr_iter);
     void _Pull3(const int & curr_iter);
     void _RecoverOnTable(const int & curr_iter);
+    void _FastStand(const int & curr_iter);
+    void _ClimbLA0(const int & curr_iter);
+    void _ClimbLA1(const int & curr_iter);
+    void _ClimbLA2(const int & curr_iter);
     void _log_return();
     bool _within_limits();
 
@@ -400,11 +414,12 @@ class Recovering {
     float climb_th1_p, climb_th2_p, climb_th1, climb_th2, climb_th1_p_r, climb_th2_p_r;
     float climb_x = 0.1;
     float arm_ab = 0.0;
-    const float table_global = 0.436; //0.238; //  0.338; //0.34; // 0.36  //TRYING: THE CLIMBING STRATEGY IS DIFFERENT IF THIS VALUE IS HIGHER THAN THE LEH HIGHT
-    const float leg_height = 0.333; 
+    float table_global =  0.42 + 0.016 + 0.02; // 0.45; // 0.436; //0.338; //0.536; //  //0.238; // 0.34; // 0.36  //TRYING: THE CLIMBING STRATEGY IS DIFFERENT IF THIS VALUE IS HIGHER THAN THE LEH HIGHT
+    const float leg_height = 0.34; 
+    const float test_thr = 0.444; 
     float climb_x_set = 0.32;// 0.25;
     float arm_ab_set = 0.8; // 0.75;
-    const float leg_ab_support = 0.21; // 0.36;
+    float leg_ab_support = 0.21; // 0.36;
     const float leg_ab_lift = 1.4;
     float leg_ab_touch = 0.98;
     float head_height_curr;
@@ -412,6 +427,12 @@ class Recovering {
     float climb_up_th1, climb_up_th2;
     float delta_th, delta_th_long, delta_th_shorten;
     const float climb_roll = 0.2, arm_ab_delta = 0.2; 
+    float foot_up_x = 0.28;
+    bool enable_leg_ik = true;
+
+    const bool learning_climb = true;
+    const bool fast_stand = true;
+    const bool finish_climb = false;
 
     // #if !DEBUG
     // Environment parameters

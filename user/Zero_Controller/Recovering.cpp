@@ -270,6 +270,24 @@ void Recovering::runtest() {
       case 30:
           _ClimbM1_4(_state_iter - _motion_start_iter);
           break;
+      case 31:
+          _ClimbM2(_state_iter - _motion_start_iter);
+          break;
+      case 32:
+          _ClimbM2_1(_state_iter - _motion_start_iter);
+          break;
+      case 33:
+          _FastStand(_state_iter - _motion_start_iter);
+          break;
+      case 34:
+          _ClimbLA0(_state_iter - _motion_start_iter);
+          break;
+      case 35:
+          _ClimbLA1(_state_iter - _motion_start_iter);
+          break;
+      case 36:
+          _ClimbLA2(_state_iter - _motion_start_iter);
+          break;
       
     }
 
@@ -370,6 +388,20 @@ void Recovering::jointPDControl(
     //    std::cout << "ACTIONS SENT TO _legController : " << qDes[0] << ", "<< qDes[1]<<", "<< qDes[2] <<std::endl;
 
     // }
+    this->_legController->commands[leg].qDes = qDes;
+    this->_legController->commands[leg].qdDes = qdDes;
+}
+
+void Recovering::jointPDControl(
+    int leg, Vec3<float> qDes, Vec3<float> qdDes, Mat3<float> kpMat_arg, Mat3<float> kdMat_arg) {
+
+    // kpMat << 80, 0, 0, 0, 80, 0, 0, 0, 80;
+    // kdMat << 10, 0, 0, 0, 10, 0, 0, 0, 10;
+
+    this->_legController->commands[leg].kpJoint = kpMat_arg;
+    this->_legController->commands[leg].kdJoint = kdMat_arg;
+
+
     this->_legController->commands[leg].qDes = qDes;
     this->_legController->commands[leg].qdDes = qdDes;
 }
@@ -490,7 +522,9 @@ void Recovering::_FoldLegs(const int & curr_iter){
     #if !DEBUG
     _phase = 11;  // DEVELOPING
     #else
-    _phase = 1;
+    // _phase = 1;
+    _phase = 33;  // FAST STANDING UP
+
     #endif
     _motion_start_iter = _state_iter + 1;
   }
@@ -671,12 +705,12 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     // std::cout << "CALCULATING THE ACOS OF " << (l_/2 + b_*cos(PI - (-theta2) - gamma_) -c_*cos(gamma_)) <<  "/" << k_ << "/" << a_ << " = "<< acos((l_/2 + b_*cos(PI - (-theta2) - gamma_) -c_*cos(gamma_)) / k_ / a_)  << std::endl;
 
     theta1 = _theta1_hat(theta2); // -PI/2 + (-theta2) + gamma_ - acos((l_/2 + b_*cos(PI - (-theta2) - gamma_) -c_*cos(gamma_)) / k_ / a_);
-   //  std::cout << "THETA1: " << theta1 << "    THETA2: " << theta2 << std::endl;
+    //  std::cout << "THETA1: " << theta1 << "    THETA2: " << theta2 << std::endl;
     // Eigen::Quaterniond _orientation(_stateEstimator->getResult().orientation[0], _stateEstimator->getResult().orientation[1], _stateEstimator->getResult().orientation[2], _stateEstimator->getResult().orientation[3]);
     _update_rpy();
     pitch = rpy[1];
 
-    std::cout << "[DEBUG] THE CALCULATED ALPHA: " << _alpha() << std::endl; // THSI SHOULD BE THE NEGATIVE OF THE PITCH
+    // std::cout << "[DEBUG] THE CALCULATED ALPHA: " << _alpha() << std::endl; // THSI SHOULD BE THE NEGATIVE OF THE PITCH
 
     if (curr_iter % 200 == 0){
         std::cout << "[STANDING] THE PITCH (ALPHA) IS " << pitch << std::endl;
@@ -705,7 +739,10 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     // #if DEBUG
     // std::cout << "[DEBUG] ARMS: " << bullet_q[0]  << ", "<< bullet_q[1] - front_hip_offset<< ", "<< bullet_q[3] <<", "<< bullet_q[4] - front_hip_offset <<"] "<<std::endl; 
     // #endif
-    int stand_time = 250;   // TODO DEBUG
+    std::cout << "===================================" << std::endl;
+    std::cout << "[DEBUG] ! THE STANDING POSITION: " << prepare_jpos[0][1] << ", " << prepare_jpos[0][2] << ", " << prepare_jpos[2][1] << ", " << prepare_jpos[2][2] << std::endl;
+    std::cout << "[DEBUG] ! CURRENT POSITION: " << this->_legController->datas[0].q[1] << ", " << this->_legController->datas[0].q[2] << ", " << this->_legController->datas[2].q[1] << ", " << this->_legController->datas[2].q[2] << std::endl;
+    int stand_time = 250 + 99999999;   // TODO DEBUG
     // if (!walk_enable)
     //     stand_time = 9999;
 
@@ -718,6 +755,9 @@ void Recovering::_RearLegsActions(const int & curr_iter){
         pitch_ref = state[1];
         // pitch_ref = -1.34066211;  // DEVELOPING: TRY TO CORRECT REFERENCE PITCH
         std::cout << "[STANDING] ORIGINAL PITCH REFERENCE: " << state[1] << "  AFTER CORRECTION: " << pitch_ref << std::endl;
+        std::cout << "===================================" << std::endl;
+        std::cout << "[DEBUG] ! THE STANDING POSITION: " << prepare_jpos[0][1] << ", " << prepare_jpos[0][2] << ", " << prepare_jpos[2][1] << ", " << prepare_jpos[2][2] << std::endl;
+        std::cout << "===================================" << std::endl;
         if (walk_enable)
             _phase = 5;
         else
@@ -2104,7 +2144,11 @@ void Recovering::_BoundToStand(const int & curr_iter){
 
 
     if(curr_iter >= 600){
-        _phase = 1;
+        if (!fast_stand)
+            _phase = 1;
+        else
+            _phase = 33;
+
         _motion_start_iter = _state_iter+1;
     } 
 
@@ -2123,6 +2167,12 @@ void Recovering::_ClimbPre(const int & curr_iter){
             initial_jpos[i] = initial_jpos[i] - front_offset;
         for(size_t i(2); i < 4; ++i)
             initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1_p = -1.5;
+        climb_th2_p = 2.6;
+
+        table_global =  X_climb[0] + 0.016 + 0.02;
+        std::cout << "[CLIMBING] THE TABLE HEIGHT IS " <<  X_climb[0] << " M" << std::endl;
 
         std::cout << "================== CALCULATING IK ====================" << std::endl;
         // INITIAL POSE IS NOT RIGHT IN SIMULATION 
@@ -2166,10 +2216,15 @@ void Recovering::_ClimbPre(const int & curr_iter){
         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
     }
 
-    if(curr_iter >= 2500+2500){
-        if (table_global <= leg_height)
-            _phase = 15; 
+    if(curr_iter >= 2500 + 2500){
+
+        if (learning_climb)
+            _phase = 34;
+        else if (table_global <= leg_height)
+            // _phase = 26; // DEBUG
+            _phase = 15; // 
         else
+            // _phase = 31; // DEBUG
             _phase = 26; 
 
         _motion_start_iter = _state_iter+1;
@@ -2420,15 +2475,37 @@ void Recovering::_ClimbM1(const int & curr_iter){
         for(size_t i(2); i < 4; ++i)
             initial_jpos[i] = initial_jpos[i] - back_offset;
 
-        climb_th1 = 0.1; //0.1;
+        climb_th1 = 0.1;
         climb_x_set = 0.32;
+        arm_ab_set = 0.8;
 
+        // if (leg_height > test_thr){
+        //     arm_ab_set = 0;
+        //     climb_x_set = 0.420;
+        //     climb_th1 = -0.8;
+        // }
+        
 
-        // TRY TO FORGET ABOUT IK......
+        float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+        float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+        std::cout << "[IK TEST] AB: " << arm_ab_set << ", X: " << climb_x_set << std::endl;
+        if (foracos > -1 && foracos < 1){
+            std::cout << "IK SOLVED, " << foracos << std::endl;
+        } else {
+            std::cout << "... IK NOT SOLVED, " << foracos << std::endl;
+        }
+        // for (int i=0; i < 30; i++){
+        //     float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+        //     float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+        //     std::cout << "[IK TEST] AB: " << arm_ab_set << ", X: " << climb_x_set << std::endl;
+        //     if (foracos > -1 && foracos < 1){
+        //         std::cout << "IK SOLVED, " << foracos << std::endl;
+        //     } else {
+        //         std::cout << "... IK NOT SOLVED, " << foracos << std::endl;
+        //     }
 
-        // float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
-        // float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
-        // if (foracos > -1 && foracos < 1)
+        //     climb_x_set += 0.01;
+        // }
 
         for (int i=0; i < 30; i++){
             _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
@@ -2455,7 +2532,7 @@ void Recovering::_ClimbM1(const int & curr_iter){
 
         // arm_ab_set = 0;
         // climb_th1_p = -1.5;
-        // climb_th2_p = 2.6;
+        // climb_th2_p = 2.6;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 
     }
 
@@ -2505,6 +2582,9 @@ void Recovering::_ClimbM1_1(const int & curr_iter){
         climb_th1_p = -1.5;
         climb_th2_p = 2.6;
 
+        climb_th1_p_r = climb_th1_p;
+        climb_th2_p_r = climb_th2_p;
+
     }
 
 
@@ -2531,6 +2611,13 @@ void Recovering::_ClimbM1_1(const int & curr_iter){
 
 
     if(curr_iter >= 2000 + 1000){
+        // leg_ab_support = 0;
+        // foot_up_x = 0.28;
+        // leg_ab_touch = 1.3;  // BE CAREFUL
+        // enable_leg_ik = false;
+        // climb_up_th1 = 0.3;
+        // climb_up_th2 = 1.8;
+        // _phase = 17;  // LIFT ONE LEGS  TEST!!!
         _phase = 28;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2553,14 +2640,14 @@ void Recovering::_ClimbM1_2(const int & curr_iter){
     }
 
 
-    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
-    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
-    pos_impl[2] << -1.4f, 0, theta2;
-    pos_impl[3] <<  1.4f, 0, theta2;
+    pos_impl[0] << initial_jpos[0][0], initial_jpos[0][1], initial_jpos[0][2];
+    pos_impl[1] << initial_jpos[1][0], initial_jpos[0][1], initial_jpos[0][2];
+    pos_impl[2] << -1.4f, -0.4, initial_jpos[2][2];
+    pos_impl[3] <<  1.4f, -0.4, initial_jpos[2][2];
 
     if (_within_limits()){
         for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
+            _Step(curr_iter, 1200, 
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
 
@@ -2570,7 +2657,8 @@ void Recovering::_ClimbM1_2(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2000){
+    if(curr_iter >= 1200){
+        
         _phase = 29;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2599,14 +2687,16 @@ void Recovering::_ClimbM1_3(const int & curr_iter){
 
     }
 
-    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
-    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[0] << initial_jpos[0][0], initial_jpos[0][1], initial_jpos[0][2];
+    pos_impl[1] << initial_jpos[1][0], initial_jpos[0][1], initial_jpos[0][2];
     pos_impl[2] << -1.4f, climb_th1, climb_th2;
     pos_impl[3] << 1.4f, climb_th1, climb_th2;
 
     if (_within_limits()){
         for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
+            _Step(curr_iter, 1200, 
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
 
@@ -2616,7 +2706,7 @@ void Recovering::_ClimbM1_3(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2000 + 1000){
+    if(curr_iter >= 1200){
         _phase = 30;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2638,15 +2728,30 @@ void Recovering::_ClimbM1_4(const int & curr_iter){
 
     }
 
-    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
-    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[2] << -1.1f, climb_th1, climb_th2;
+    // pos_impl[3] << 1.1f, climb_th1, climb_th2;
+
+    pos_impl[0] << initial_jpos[0][0], initial_jpos[0][1], initial_jpos[0][2];
+    pos_impl[1] << initial_jpos[1][0], initial_jpos[0][1], initial_jpos[0][2];
     pos_impl[2] << -1.1f, climb_th1, climb_th2;
     pos_impl[3] << 1.1f, climb_th1, climb_th2;
 
+    Mat3<float> kpMat_drop;
+    Mat3<float> kdMat_drop;
+
+    kpMat_drop << 0, 0, 0, 0, 80, 0, 0, 0, 80;
+    kdMat_drop << 0, 0, 0, 0, 10, 0, 0, 0, 10;
+
     if (_within_limits()){
-        for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
+        for(size_t leg(0); leg<2; ++leg){
+            _Step(curr_iter, 500, 
             leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+        for(size_t leg(2); leg<4; ++leg){
+            _Step(curr_iter, 500, 
+            leg, initial_jpos[leg], pos_impl[leg], kpMat_drop, kdMat_drop);
         } 
 
     } else {
@@ -2655,7 +2760,7 @@ void Recovering::_ClimbM1_4(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2000 + 1000){
+    if(curr_iter >= 500){
         _phase = 25;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2708,6 +2813,7 @@ void Recovering::_ClimbM1_4(const int & curr_iter){
 
 void Recovering::_Climb2(const int & curr_iter){
 
+    // case 17
     // LIFT THE LEFT LEG
 
     if (curr_iter==0){
@@ -2764,29 +2870,28 @@ void Recovering::_Climb3(const int & curr_iter){
 
         std::cout << "================== CALCULATING IK (HIND LEGS) ====================" << std::endl;
 
-        float foot_up_x = 0.28;
+        // // DEBUG:
+        // leg_ab_touch = 1.0;
+        // ////////
+        if (enable_leg_ik){
+            _update_rpy();
+            pitch = rpy[1];
+            _legs_IK(foot_up_x, leg_ab_touch, head_height_curr, pitch, climb_up_th1, climb_up_th2);
 
-        // DEBUG:
-        leg_ab_touch = 1.0;
-        ////////
-        _update_rpy();
-        pitch = rpy[1];
-        _legs_IK(foot_up_x, leg_ab_touch, head_height_curr, pitch, climb_up_th1, climb_up_th2);
 
+            std::cout << "    [INPUT] " << std::endl;
+            std::cout << "    X: " << foot_up_x << ", AB: " << leg_ab_touch << ", HEAD HEIGHT: " << head_height_curr << ", PITCH: "<< pitch << std::endl;
+            std::cout << "    [OUTPUT] " << std::endl;
+            std::cout << "    TH1: " << climb_up_th1 << ", TH2: " << climb_up_th2 << std::endl;
 
-        std::cout << "    [INPUT] " << std::endl;
-        std::cout << "    X: " << foot_up_x << ", AB: " << leg_ab_touch << ", HEAD HEIGHT: " << head_height_curr << ", PITCH: "<< pitch << std::endl;
-        std::cout << "    [OUTPUT] " << std::endl;
-        std::cout << "    TH1: " << climb_up_th1 << ", TH2: " << climb_up_th2 << std::endl;
-
-        if (climb_up_th2 > 2.0)
-            std::cout << "    OH... THE STICK WOULD BE SQUASHED!" << std::endl;
+            if (climb_up_th2 > 2.0)
+                std::cout << "    OH... THE STICK WOULD BE SQUASHED!" << std::endl;
 
         // if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
         //     std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
         // else
         //     std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
-        
+        }
         std::cout << "==================================================================" << std::endl;
         
     }
@@ -2857,6 +2962,7 @@ void Recovering::_Climb4(const int & curr_iter){
 }
 
 void Recovering::_Pull(const int & curr_iter){
+    // case 21
 
     if (curr_iter==0){
         for(size_t i(0); i < 4; ++i)
@@ -2877,12 +2983,17 @@ void Recovering::_Pull(const int & curr_iter){
         pos_impl[2] << 0, -PI/2, 0;
         pos_impl[3] << leg_ab_touch, climb_up_th1 - delta_stretch, climb_up_th2;
     } else {
-        delta_stretch = 1.6;
-        leh_action_length = 2000;
-        pos_impl[0] << -0, climb_th1_p - delta_stretch, climb_th2_p;
-        pos_impl[1] << 0, climb_th1_p - delta_stretch, climb_th2_p;
-        pos_impl[2] << initial_jpos[2][0], initial_jpos[2][1], initial_jpos[2][2];
-        pos_impl[3] << initial_jpos[3][0], initial_jpos[3][1], initial_jpos[3][2];
+        // delta_stretch = 1.6;
+        // leh_action_length = 2000;
+        // pos_impl[0] << -0, climb_th1_p - delta_stretch, climb_th2_p;
+        // pos_impl[1] << 0, climb_th1_p - delta_stretch, climb_th2_p;
+        // pos_impl[2] << initial_jpos[2][0], initial_jpos[2][1], initial_jpos[2][2];
+        // pos_impl[3] << initial_jpos[3][0], initial_jpos[3][1], initial_jpos[3][2];
+
+        pos_impl[0] << -arm_ab_set, climb_th1_p_r  - delta_stretch, climb_th2_p_r  - delta_stretch;
+        pos_impl[1] << arm_ab_set, climb_th1_p  - delta_stretch, climb_th2_p - delta_stretch;
+        pos_impl[2] << 0, -PI/2, 0;
+        pos_impl[3] << leg_ab_touch, climb_up_th1 - delta_stretch, climb_up_th2;
     }
     
 
@@ -2902,7 +3013,7 @@ void Recovering::_Pull(const int & curr_iter){
     }
 
 
-    if(curr_iter >= 2000 + 999999){
+    if(curr_iter >= 2000){
         _phase = 22;
         _motion_start_iter = _state_iter+1;
     } 
@@ -2910,6 +3021,178 @@ void Recovering::_Pull(const int & curr_iter){
 
     
 }
+
+
+
+void Recovering::_ClimbM2(const int & curr_iter){
+
+    // MOVE THE ARMS TOWARD THE TABLE CENTRE; MODE1: DO NOT TILT THE TWO LEGS
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1 = 0.1; //0.1;
+
+        // if (leg_height > test_thr){
+        //     arm_ab_set = 0;
+        //     climb_x_set = 0.420;
+        //     climb_th1 = -0.8;
+        // }
+        
+
+        float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+        float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+        std::cout << "[IK TEST] AB: " << arm_ab_set << ", X: " << climb_x_set << std::endl;
+        if (foracos > -1 && foracos < 1){
+            std::cout << "IK SOLVED, " << foracos << std::endl;
+        } else {
+            std::cout << "... IK NOT SOLVED, " << foracos << std::endl;
+        }
+        // for (int i=0; i < 30; i++){
+        //     float y = _head_height(climb_th1, theta2, arm_ab_set, table_global);
+        //     float foracos = (pow(climb_x_set, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
+        //     std::cout << "[IK TEST] AB: " << arm_ab_set << ", X: " << climb_x_set << std::endl;
+        //     if (foracos > -1 && foracos < 1){
+        //         std::cout << "IK SOLVED, " << foracos << std::endl;
+        //     } else {
+        //         std::cout << "... IK NOT SOLVED, " << foracos << std::endl;
+        //     }
+
+        //     climb_x_set += 0.01;
+        // }
+
+        // for (int i=0; i < 30; i++){
+        //     _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+        //     if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI <= 0)
+        //         break;
+        //     climb_x_set += i*0.01;
+        //     // arm_ab_set += i*0.005;
+        // }
+
+        // std::cout << "================== TEST IK ====================" << std::endl;
+        // // INITIAL POSE IS NOT RIGHT IN SIMULATION 
+
+        // climb_x_set = -0.2;
+        // arm_ab_set = 0;
+        // _arms_IK(climb_x_set, arm_ab_set, climb_th1, theta2, table_global, climb_th1_p, climb_th2_p);
+
+        // std::cout << "    [INPUT] " << std::endl;
+        // std::cout << "    X: " << climb_x_set << ", AB: " << arm_ab_set << ", TH1: " << climb_th1 << ", TH2: " << theta2 << ", TABLE: " << table_global << std::endl;
+        // std::cout << "    [OUTPUT] " << std::endl;
+        // std::cout << "    TH1P: " << climb_th1_p << ", TH2P: " << climb_th2_p << std::endl;
+
+        // if (gamma_ - climb_th1 - theta2 + climb_th1_p + climb_th2_p - PI > 0)
+        //     std::cout << "    FUCK!  THE ROBOT WILL USE ITS ELBOW TO CLIMB..." << std::endl;
+        // else
+        //     std::cout << "    GOOD!  I GUESS THE ROBOT POSE WILL BE NORMAL..." << std::endl;
+
+        arm_ab_set = 0;
+        climb_th1 = -0.3;
+        climb_th2 = theta2;
+
+        // climb_th2_p = 2.6;
+        // climb_th1_p = -(PI/2 - (acos(_head_height(climb_th1, climb_th2, 0, table_global) / b_) + (PI/2 - _alpha(climb_th1, climb_th2))));
+
+        climb_th1_p = PI/2 - _alpha(climb_th1, climb_th2);
+        climb_th2_p = asin(_head_height(climb_th1, climb_th2, 0, table_global) / c_) - PI;
+
+        std::cout << "CALCULATED TH1P: " << climb_th1_p << std::endl;
+        std::cout << "CALCULATED TH2P: " << climb_th2_p << std::endl;
+        
+
+    }
+
+
+    pos_impl[0] << -arm_ab_set, climb_th1_p, climb_th2_p;
+    pos_impl[1] << arm_ab_set, climb_th1_p, climb_th2_p;
+    // pos_impl[2] << 0.0f, climb_th1, theta2;
+    // pos_impl[3] << 0.0f, climb_th1, theta2;
+    pos_impl[2] << 0, climb_th1 + 0.1, theta2;
+    pos_impl[3] << 0, climb_th1 + 0.1, theta2;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 2500){
+        _phase = 32; 
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+void Recovering::_ClimbM2_1(const int & curr_iter){
+
+
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        // climb_x_set = 0.32;
+
+        // arm_ab_set = 0;
+        // climb_th1_p = -0.3;
+        // climb_th2_p = 2.6;
+        // climb_th1 = -0.3;
+        // climb_th2 = theta2;
+
+        // climb_th1_p = -(PI/2 - (acos(_head_height(climb_th1, climb_th2, 0, table_global) / b_) + (PI/2 - _alpha(climb_th1, climb_th2))));
+
+        // std::cout << "CALCULATED TH1P: " << climb_th1_p << std::endl;
+        
+
+    }
+
+    std::cout << "[DEBUG] TH2: " << theta2 << std::endl;
+    pos_impl[0] << -arm_ab_set, climb_th1_p - 1.8, climb_th2_p + 1.2;
+    pos_impl[1] << arm_ab_set, climb_th1_p - 1.8, climb_th2_p + 1.2;
+    pos_impl[2] << 0, climb_th1 + 0.1 - 0.6, theta2 + 0.6;
+    pos_impl[3] << 0, climb_th1 + 0.1 - 0.6, theta2 + 0.6;
+
+    
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<2; ++leg){
+            _Step(curr_iter, 1500, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+        for(size_t leg(2); leg<4; ++leg){
+            _Step(curr_iter, 1000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+
+    if(curr_iter >= 2500 + 1000){
+        _phase = -27; 
+        _motion_start_iter = _state_iter+1;
+    } 
+
+}
+
+
 
 void Recovering::_Pull1(const int & curr_iter){
 
@@ -3038,7 +3321,7 @@ void Recovering::_RecoverOnTable(const int & curr_iter){
 
     if (_within_limits()){
         for(size_t leg(0); leg<4; ++leg){
-            _Step(curr_iter, 2000, 
+            _Step(curr_iter, 1200, 
             leg, initial_jpos[leg], pos_impl[leg]);
         } 
     } else {
@@ -3117,6 +3400,49 @@ void Recovering::_Step(
 
 }
 
+void Recovering::_Step(
+    const size_t & curr_iter, size_t max_iter, int leg, 
+    const Vec3<float> & ini, const Vec3<float> & fin,
+    const Mat3<float> kpMat_arg, const Mat3<float> kdMat_arg){
+
+    float a(0.f);
+    float b(1.f);
+    Vec3<float> inter_pos;
+
+    if (max_iter != 0){
+
+        if(curr_iter <= max_iter) {
+          b = (float)curr_iter/(float)max_iter;
+          a = 1.f - b;
+        }
+
+        if (leg == 0 || leg == 1)
+            inter_pos = a * ini + b * fin + front_offset;
+        else 
+            inter_pos = a * ini + b * fin + back_offset;
+
+
+    } else {
+        if (leg == 0 || leg == 1)
+            inter_pos = fin + front_offset;
+        else
+            inter_pos = fin + back_offset;
+    }
+
+    #if !DEBUG
+    if (leg == 2)
+        inter_pos[2] += 0.02;   // FIX THE FUCKING KNEE ERROR
+    #endif
+
+    Vec3<float> vec3;
+    vec3 << 0.0, 0.0, 0.0;
+
+    // do control
+    this->jointPDControl(leg, inter_pos, vec3, kpMat_arg, kdMat_arg);
+
+
+}
+
 void Recovering::_MoveHands(const int & curr_iter){
   std::cout << "TRY TO KEEP BALANCE !!!  " << std::endl;
 
@@ -3146,6 +3472,177 @@ void Recovering::_MoveHands(const int & curr_iter){
 
 
 }
+
+void Recovering::_FastStand(const int & curr_iter){
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        // theta1 = -1.175;
+        theta1 = -1.156;
+        theta2 = -1.000;
+        
+
+    }
+
+    // float delta_stretch = 1.3;
+    pos_impl[0] << 0, -1.571f, 0.998f;
+    pos_impl[1] << 0, -1.571f, 0.998f;
+    pos_impl[2] << 0, theta1, theta2;
+    pos_impl[3] << 0, theta1, theta2;
+    
+    // pos_impl[0] << 0, -1.571f, 0.998f;
+    // pos_impl[1] << 0, -1.571f, 0.998f;
+    // pos_impl[2] << 0, -PI/2, 0;
+    // pos_impl[3] << 0, -PI/2, 0;
+    // pos_impl[3] << 1.3, -1.1f, climb_up_th2;
+    std::cout << "===================================" << std::endl;
+    std::cout << "[DEBUG] ! DESIRED POSITION: " << pos_impl[0][1] << ", " << pos_impl[0][2] << ", " << pos_impl[2][1] << ", " << pos_impl[2][2] << std::endl;
+    std::cout << "[DEBUG] ! CURRENT POSITION: " << this->_legController->datas[0].q[1] << ", " << this->_legController->datas[0].q[2] << ", " << this->_legController->datas[2].q[1] << ", " << this->_legController->datas[2].q[2] << std::endl;
+
+    pos_impl[2] = pos_impl[2] - back_offset;
+    pos_impl[3] = pos_impl[3] - back_offset;
+
+    if (_within_limits()){
+        // // TODO: USE THE CALIBRATED STEP FUNCTION 
+        // for(size_t i(0); i<4; ++i){
+        //     this->jointPDControl(i, prepare_jpos[i], zero_vec3);
+        // }
+
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2000 + 99999999){
+        _phase = 13;
+        _motion_start_iter = _state_iter+1;
+    } 
+    
+}
+
+
+void Recovering::_ClimbLA0(const int & curr_iter){
+    // PHASE 34
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+    pos_impl[0] << -X_climb[1+1], X_climb[1+2], X_climb[1+3];
+    pos_impl[1] << X_climb[1+1], X_climb[1+2], X_climb[1+3];
+    pos_impl[2] << 0, X_climb[1+0], -1.000f;
+    pos_impl[3] << 0, X_climb[1+0], -1.000f;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2000 + 500){
+        _phase = 35;
+        _motion_start_iter = _state_iter+1;
+    } 
+    
+}
+
+void Recovering::_ClimbLA1(const int & curr_iter){
+    // PHASE 35
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+    }
+
+    pos_impl[0] << 0, X_climb[1+4], X_climb[1+5];
+    pos_impl[1] << 0, X_climb[1+4], X_climb[1+5];
+    pos_impl[2] << 0, X_climb[1+0], -1.000f;
+    pos_impl[3] << 0, X_climb[1+0], -1.000f;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2000){
+
+        _phase = 36;
+        _motion_start_iter = _state_iter+1;
+    } 
+    
+}
+
+void Recovering::_ClimbLA2(const int & curr_iter){
+    // PHASE 36
+
+    if (curr_iter==0){
+        for(size_t i(0); i < 4; ++i)
+          initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
+
+        climb_th1_p = -1.5;
+        climb_th2_p = 2.6;
+
+    }
+
+    pos_impl[0] << 0, climb_th1_p, climb_th2_p;
+    pos_impl[1] << 0, climb_th1_p, climb_th2_p;
+    pos_impl[2] << 0, X_climb[1+0], -1.000f;
+    pos_impl[3] << 0, X_climb[1+0], -1.000f;
+
+    if (_within_limits()){
+        for(size_t leg(0); leg<4; ++leg){
+            _Step(curr_iter, 2000, 
+            leg, initial_jpos[leg], pos_impl[leg]);
+        } 
+    } else {
+        _phase = -911;
+        std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
+    }
+
+    if(curr_iter >= 2000 + 1000){
+        if (finish_climb)
+            _phase = 28;
+        else
+            _phase = -28;
+        _motion_start_iter = _state_iter+1;
+    } 
+    
+}
+
 
 bool Recovering::isSafe(){
   // Check RC mode
