@@ -1,11 +1,7 @@
-## Cheetah-Software
-This repository contains the Robot and Simulation software project.  For a getting started guide, see the documentation folder.
+## Cheetah-Software-RL
+This repository is based on [Cheetah-Software](https://github.com/mit-biomimetics/Cheetah-Software).
 
-The common folder contains the common library with dynamics and utilities
-The resources folder will contain data files, like CAD of the robot used for the visualization
-The robot folder will contain the robot program
-The sim folder will contain the simulation program. It is the only program which depends on QT.
-The third-party will contain *small* third party libraries that we have modified. This should just be libsoem for Cheetah 3, which Pat modified at one point.
+Based on the original implementation, we mainly add a controller thats perform our multi-modal transition stragety and can run a trained RL policy. 
 
 ## Build
 To build all code:
@@ -71,3 +67,9 @@ s: simulation, r: robot
 - `libblas-dev liblapack-dev`
 
 To use Ipopt, use CMake Ipopt option. Ex) cmake -DIPOPT_OPTION=ON ..
+
+
+
+## Acknowledgment
+** This implementation is based on [Cheetah-Software](https://github.com/mit-biomimetics/Cheetah-Software). **
+
