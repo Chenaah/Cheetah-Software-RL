@@ -19,7 +19,7 @@
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
-#define DEBUG false
+#define DEBUG true
 
 #if DEBUG
 // FOR DEBUGING: 
@@ -109,6 +109,8 @@ class Recovering {
     bool pre1_enable = true;
 
     int bound_length = 120;
+
+    float just_bounding = false; // for simulation
 
     float param_a = 0, param_b = 0;  // public for easiliy read from files
     std::vector<float> param_opt = std::vector<float>(9, 0);
@@ -321,7 +323,7 @@ class Recovering {
     const double gamma_ = 0.97213, l_ = 0.184, a_ = 0.395, b_ = 0.215, c_ = 0.215;
     const double ab_y = 0.08, torso_y = 0.1;
     #if !DEBUG
-    const float k_final = 0.72; //0.69; // If the CoM is too forward, increase this value ~ A good choice in theory: 0.61
+    const float k_final = 0.68; // 0.72; //0.69; // If the CoM is too forward, increase this value ~ A good choice in theory: 0.61
     #else
     const float k_final = 0.8;
     #endif
@@ -431,8 +433,8 @@ class Recovering {
     bool enable_leg_ik = true;
 
     const bool learning_climb = true;
-    const bool fast_stand = true;
-    const bool finish_climb = false;
+    const bool fast_stand = false;
+    const bool full_climb = true;
 
     // #if !DEBUG
     // Environment parameters

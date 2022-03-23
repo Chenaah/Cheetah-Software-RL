@@ -119,8 +119,9 @@ void RobotRunner::run() {
       }
       _robot_ctrl->Estop();
     }else {
+      bool check_rc_state = false;
       // Controller
-      if (!rc_safe){
+      if (!rc_safe && check_rc_state){
         printf("PLEASE CHECK THE INITIAL STATE OF THE ROMOTE CONTROLLER!\n");
         for (int leg = 0; leg < 4; leg++) {
         _legController->commands[leg].zero();

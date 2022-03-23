@@ -523,7 +523,10 @@ void Recovering::_FoldLegs(const int & curr_iter){
     _phase = 11;  // DEVELOPING
     #else
     // _phase = 1;
-    _phase = 33;  // FAST STANDING UP
+    if (just_bounding)
+        _phase = 11;
+    else
+        _phase = 33;  // FAST STANDING UP
 
     #endif
     _motion_start_iter = _state_iter + 1;
@@ -742,7 +745,7 @@ void Recovering::_RearLegsActions(const int & curr_iter){
     std::cout << "===================================" << std::endl;
     std::cout << "[DEBUG] ! THE STANDING POSITION: " << prepare_jpos[0][1] << ", " << prepare_jpos[0][2] << ", " << prepare_jpos[2][1] << ", " << prepare_jpos[2][2] << std::endl;
     std::cout << "[DEBUG] ! CURRENT POSITION: " << this->_legController->datas[0].q[1] << ", " << this->_legController->datas[0].q[2] << ", " << this->_legController->datas[2].q[1] << ", " << this->_legController->datas[2].q[2] << std::endl;
-    int stand_time = 250 + 99999999;   // TODO DEBUG
+    int stand_time = 250;   // TODO DEBUG
     // if (!walk_enable)
     //     stand_time = 9999;
 
@@ -878,7 +881,7 @@ void Recovering::_arms_IK(const float & x, const float & ab, const float & th1, 
 
     float y = _head_height(th1, th2, ab, table);
     float foracos = (pow(x, 2) + pow(y, 2) - pow(b_, 2) - pow(c_, 2)) / (2*b_*c_);
-    // std::cout << "[DEBUG] foracos: " << foracos << std::endl;
+    std::cout << "[DEBUG] foracos: " << foracos << std::endl;
     assert(foracos > -1 && foracos < 1);
     float theta2_ik = -acos(foracos);
     float eq_b = 2*c_*sin(theta2_ik)*y;
@@ -1869,10 +1872,13 @@ void Recovering::_SettleDown(const int & curr_iter){
         _Step(curr_iter, 0, leg, initial_jpos[leg], prepare_jpos[leg]);
     }
 
-    if(curr_iter >= 1200 + 500*30){  
-
-        _phase = 7;
+    if(curr_iter >= 1200 + 500*1){  
+        if (!learning_climb)
+            _phase = 7;
+        else
+            _phase = 13;
         _motion_start_iter = _state_iter + 1;
+        
     }
 
     
@@ -2179,7 +2185,9 @@ void Recovering::_ClimbPre(const int & curr_iter){
 
         pre_climb_th1 = theta1 + 0.1;
 
-        float table_local = std::max(table_global, 0.338f);
+        float lowest_table = 0.35f; // 0.338f;
+
+        float table_local = std::max(table_global, lowest_table);
 
         _arms_IK(0.1, 0, pre_climb_th1, theta2, table_local, climb_th1_p, climb_th2_p);
 
@@ -2216,7 +2224,13 @@ void Recovering::_ClimbPre(const int & curr_iter){
         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
     }
 
-    if(curr_iter >= 2500 + 2500){
+    int wait_period;
+    if (fast_stand)
+        wait_period = 1000;
+    else
+        wait_period = 200;
+
+    if(curr_iter >= 2000 + wait_period){
 
         if (learning_climb)
             _phase = 34;
@@ -3495,7 +3509,7 @@ void Recovering::_FastStand(const int & curr_iter){
     pos_impl[1] << 0, -1.571f, 0.998f;
     pos_impl[2] << 0, theta1, theta2;
     pos_impl[3] << 0, theta1, theta2;
-    
+
     // pos_impl[0] << 0, -1.571f, 0.998f;
     // pos_impl[1] << 0, -1.571f, 0.998f;
     // pos_impl[2] << 0, -PI/2, 0;
@@ -3523,7 +3537,7 @@ void Recovering::_FastStand(const int & curr_iter){
         std::cout << "[DONE] SECURITY CHECK FAIL !!!!!!   ACTIONS GO BEYOND LIMITS !!!!!! " << "\n";
     }
 
-    if(curr_iter >= 2000 + 99999999){
+    if(curr_iter >= 2000 + 3000){
         _phase = 13;
         _motion_start_iter = _state_iter+1;
     } 
@@ -3634,7 +3648,7 @@ void Recovering::_ClimbLA2(const int & curr_iter){
     }
 
     if(curr_iter >= 2000 + 1000){
-        if (finish_climb)
+        if (full_climb)
             _phase = 28;
         else
             _phase = -28;
@@ -3941,7 +3955,7 @@ bool Recovering::_within_limits(){
             std::cout << "[SECURITY] JOINT 1 OF LEG " << leg << " GOT A CRAZY ACTION: "<< pos_impl[leg][1] << "\n";
             return false;
         }
-        else if (pos_impl[leg][2] < -2.7 || pos_impl[leg][2] > 2.7 || std::isnan(pos_impl[leg][2])){    
+        else if (pos_impl[leg][2] < -2.8 || pos_impl[leg][2] > 2.8 || std::isnan(pos_impl[leg][2])){    
             std::cout << "[SECURITY] JOINT 2 OF LEG " << leg << " GOT A CRAZY ACTION: "<< pos_impl[leg][2] << "\n";
             return false;
         }
