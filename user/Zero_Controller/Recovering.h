@@ -16,6 +16,8 @@
 #include <fstream>
 #include <glob.h>
 #include <cmath>
+#include "cnpy.h"
+
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
@@ -242,6 +244,7 @@ class Recovering {
     float _toPitch(const Eigen::Quaterniond& q);
     std::vector<float> _toRPY(const Eigen::Quaterniond& q);
     void _FK(const float & th1, const float & th2, float & x, float & y);
+    void _LegsFK(const float & th1, const float & th2, float & x, float & z);
     void _IK(const float & x, const float & y, float & th1, float & th2);
     void _update_basic_leg_actions(const int & curr_iter);
     void _update_leg_offsets();
@@ -279,6 +282,10 @@ class Recovering {
     void _ClimbLA0(const int & curr_iter);
     void _ClimbLA1(const int & curr_iter);
     void _ClimbLA2(const int & curr_iter);
+    void _PushTest(const int & curr_iter);
+    void _PushTest1(const int & curr_iter);
+    void _WalkTest(const int & curr_iter);
+    void _WalkTest1(const int & curr_iter);
     void _log_return();
     bool _within_limits();
 
@@ -311,6 +318,10 @@ class Recovering {
     double pitch_sum = 0;
     std::chrono::time_point<std::chrono::high_resolution_clock> t_start, t_end;
     double theta1, theta1_delta, theta2, theta1_act, theta2_act, theta1_delta_old, tau, theta1_prime, theta2_prime;
+    float th0_l, th0_r, th1_l, th1_r, th2_l, th2_r, th0p_l, th0p_r, th1p_l, th1p_r, th2p_l, th2p_r, th0_, th1_, th2_, th0p_, th1p_, th2p_;
+    double* loaded_data;
+    std::vector<double> left_traj, right_traj;
+    int traj_length, pose_dim;
     float adaptive_hip;
     bool pre_adaptive_hip = false;
 
@@ -320,7 +331,7 @@ class Recovering {
     int bend_start_iter = 0;
     double k_ = 0.516;
 
-    const double gamma_ = 0.97213, l_ = 0.184, a_ = 0.395, b_ = 0.215, c_ = 0.215;
+    const double gamma_ = 0.97213, l_ = 0.184, a_ = 0.395, b_ = 0.215, c_ = 0.215, ab_offset = 0.008;
     const double ab_y = 0.08, torso_y = 0.1;
     #if !DEBUG
     const float k_final = 0.68; // 0.72; //0.69; // If the CoM is too forward, increase this value ~ A good choice in theory: 0.61
@@ -414,6 +425,7 @@ class Recovering {
 
     float pre_climb_th1;
     float climb_th1_p, climb_th2_p, climb_th1, climb_th2, climb_th1_p_r, climb_th2_p_r;
+    float climb_th0_p_l, climb_th0_p_r;
     float climb_x = 0.1;
     float arm_ab = 0.0;
     float table_global =  0.42 + 0.016 + 0.02; // 0.45; // 0.436; //0.338; //0.536; //  //0.238; // 0.34; // 0.36  //TRYING: THE CLIMBING STRATEGY IS DIFFERENT IF THIS VALUE IS HIGHER THAN THE LEH HIGHT

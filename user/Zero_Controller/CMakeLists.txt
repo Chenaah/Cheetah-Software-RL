@@ -31,7 +31,7 @@ set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 # find_package(pybind11 REQUIRED)
 # add_subdirectory(pybind11)
 
-add_executable(zero ${sources} main.cpp Training_Controller.cpp DataManager.cpp BackFlipTesting.cpp Recovering.cpp SafetyCheckerPro.cpp)
+add_executable(zero ${sources} main.cpp Training_Controller.cpp DataManager.cpp BackFlipTesting.cpp Recovering.cpp SafetyCheckerPro.cpp cnpy.cpp)
 
 target_link_libraries(zero robot biomimetics)
 target_link_libraries(zero dynacore_param_handler qpOASES)
