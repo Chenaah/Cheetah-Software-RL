@@ -46,6 +46,7 @@ class QuadrupedInverseKinematic
 QuadrupedInverseKinematic::QuadrupedInverseKinematic(float x, float y, float z)
 {
     // std::cout<<"Please input parameters:";
+    std::cout << "=============== [DEBUG] IK BEGINS ===============" << std::endl;
     std::cout<<"X-axis:  " <<x<<std::endl;
     std::cout<<"Y-axis:  " <<y<<std::endl;
     std::cout<<"Z-axis:  " <<z<<std::endl;
@@ -54,7 +55,7 @@ QuadrupedInverseKinematic::QuadrupedInverseKinematic(float x, float y, float z)
     pos_y = y;
     pos_z = z;
 
-    h = 0; // 0.008; // The length of the first link
+    h = 0.008; // The length of the first link
     hu = 0.215; // The length of the second link
     hl = 0.215; // The length of the third link
 
@@ -155,10 +156,10 @@ float QuadrupedInverseKinematic::calc_alpha()
     // alpha_2 = -atan((hu+n)/lxz);
     alpha_2 = acos((hu+n)/lxz);
 
-    // std::cout<<"alpha1:  "<<alpha_1<<std::endl;
+    std::cout<<"alpha1:  "<<alpha_1<<std::endl;
     if (pos_z < 0)
         alpha_1 = - 3.14159 - alpha_1;
-    // std::cout<<"--> alpha1:  "<<alpha_1<<std::endl;
+    std::cout<<"--> alpha1:  "<<alpha_1<<std::endl;
 
     alpha = alpha_1 + alpha_2;
     // std::cout<<"dyz: "<<dyz<<"    lyz: "<<lyz<<"    pos_x: "<<pos_x<<std::endl;

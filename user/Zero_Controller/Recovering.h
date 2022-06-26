@@ -245,6 +245,8 @@ class Recovering {
     std::vector<float> _toRPY(const Eigen::Quaterniond& q);
     void _FK(const float & th1, const float & th2, float & x, float & y);
     void _LegsFK(const float & th1, const float & th2, float & x, float & z);
+    void _LeftLegIK(const float x, const float y, const float z, float &th0, float &th1, float &th2);
+    void _RightLegIK(const float x, const float y, const float z, float &th0, float &th1, float &th2);
     void _IK(const float & x, const float & y, float & th1, float & th2);
     void _update_basic_leg_actions(const int & curr_iter);
     void _update_leg_offsets();
@@ -321,6 +323,7 @@ class Recovering {
     float th0_l, th0_r, th1_l, th1_r, th2_l, th2_r, th0p_l, th0p_r, th1p_l, th1p_r, th2p_l, th2p_r, th0_, th1_, th2_, th0p_, th1p_, th2p_;
     double* loaded_data;
     std::vector<double> left_traj, right_traj;
+    float lipm_x_offset, lipm_z_offset;
     int traj_length, pose_dim;
     float adaptive_hip;
     bool pre_adaptive_hip = false;
@@ -332,11 +335,12 @@ class Recovering {
     double k_ = 0.516;
 
     const double gamma_ = 0.97213, l_ = 0.184, a_ = 0.395, b_ = 0.215, c_ = 0.215, ab_offset = 0.008;
-    const double ab_y = 0.08, torso_y = 0.1;
+    const double torso_y = 0.1;
+    const double ab_y = 0.055; // 0.08;
     #if !DEBUG
     const float k_final = 0.68; // 0.72; //0.69; // If the CoM is too forward, increase this value ~ A good choice in theory: 0.61
     #else
-    const float k_final = 0.8;
+    const float k_final = 0.61; // 0.8;
     #endif
 
     // const float front_hip_offset = 0.11, back_hip_offset = -0.155;  OLD
@@ -445,7 +449,7 @@ class Recovering {
     bool enable_leg_ik = true;
 
     const bool learning_climb = true;
-    const bool fast_stand = false;
+    const bool fast_stand = true;
     const bool full_climb = true;
 
     // #if !DEBUG
