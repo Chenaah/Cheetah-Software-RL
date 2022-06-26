@@ -61,126 +61,130 @@ void Training_Controller::runController(){
     // assert(globbuf.gl_pathc == 1);
     // std::cout << "FOUND " << globbuf.gl_pathv[0] << std::endl;
     // recovering.DAM_path = globbuf.gl_pathv[0];
+    // std::cout << "-! SHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIT" << std::endl;;
 
-    const char* param_conf = "param_opt.conf"; 
-    char* param_conf_dir_full = new char[strlen(recovering.DAM_path) + strlen(param_conf) + 1 + 1];
-    strcpy(param_conf_dir_full, recovering.DAM_path);
-    strcat(param_conf_dir_full, param_conf);
+    // const char* param_conf = "param_opt.conf"; 
+    // char* param_conf_dir_full = new char[strlen(recovering.DAM_path) + strlen(param_conf) + 1 + 1];
+    // strcpy(param_conf_dir_full, recovering.DAM_path);
+    // strcat(param_conf_dir_full, param_conf);
 
-    std::ifstream stand_config(stand_conf_dir_full);
-    std::vector<float> data;
-
-    std::string temp;
-      while(std::getline(stand_config, temp))
-        data.push_back(std::stof(temp));
-
-
-    // std::ifstream myfile("/home/user/dog_static.conf");
+    // std::ifstream stand_config(stand_conf_dir_full);
     // std::vector<float> data;
+
+    // std::string temp;
+    //   while(std::getline(stand_config, temp))
+    //     data.push_back(std::stof(temp));
+
+
+    // std::cout << "-- SHIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIT" << std::endl;;
+    // // std::ifstream myfile("/home/user/dog_static.conf");
+    // // std::vector<float> data;
     
-    // if (!myfile.good()){
-    //   std::cout << "I GUESS YOU ARE USING YOUR PC" << std::endl;
-    //   std::ifstream myfile2("/home/chen/dog_static.conf");
+    // // if (!myfile.good()){
+    // //   std::cout << "I GUESS YOU ARE USING YOUR PC" << std::endl;
+    // //   std::ifstream myfile2("/home/chen/dog_static.conf");
       
-    //   std::string temp;
-    //   while(std::getline(myfile2, temp))
-    //     data.push_back(std::stof(temp));
+    // //   std::string temp;
+    // //   while(std::getline(myfile2, temp))
+    // //     data.push_back(std::stof(temp));
 
-    // } else {
-    //   std::string temp;
-    //   while(std::getline(myfile, temp))
-    //     data.push_back(std::stof(temp));
-    // }
+    // // } else {
+    // //   std::string temp;
+    // //   while(std::getline(myfile, temp))
+    // //     data.push_back(std::stof(temp));
+    // // }
     
-    recovering.stand_front_hip = data[0];
-    recovering.stand_front_knee = data[1];
-    recovering.stand_back_hip = data[2];
-    recovering.stand_back_knee = data[3];
+    // recovering.stand_front_hip = data[0];
+    // recovering.stand_front_knee = data[1];
+    // recovering.stand_back_hip = data[2];
+    // recovering.stand_back_knee = data[3];
 
-    recovering.pre_front_hip = data[4];
-    recovering.pre_front_knee = data[5];
-    recovering.pre_back_hip = data[6];
-    recovering.pre_back_knee = data[7];
+    // recovering.pre_front_hip = data[4];
+    // recovering.pre_front_knee = data[5];
+    // recovering.pre_back_hip = data[6];
+    // recovering.pre_back_knee = data[7];
 
-    if (data[4] == 999)
-      recovering.pre1_enable = false;
+    // if (data[4] == 999)
+    //   recovering.pre1_enable = false;
 
-    recovering.pre2_front_hip = data[8];
-    recovering.pre2_front_knee = data[9];
-    recovering.pre2_back_hip = data[10];
-    recovering.pre2_back_knee = data[11];
+    // recovering.pre2_front_hip = data[8];
+    // recovering.pre2_front_knee = data[9];
+    // recovering.pre2_back_hip = data[10];
+    // recovering.pre2_back_knee = data[11];
 
-    recovering.ad1 = data[12];
-    recovering.ad2 = data[13];
-
-
-    std::ifstream bounding_config(bounding_conf_dir_full);
-    std::vector<int> data2;
-    while(std::getline(bounding_config, temp))
-        data2.push_back(std::stoi(temp));
-
-    recovering.bound_length = data2[0];
-
-    std::ifstream walking_config(walking_conf_dir_full);
-    std::vector<float> data3;
-    while(std::getline(walking_config, temp))
-        // std::cout << "READ:::::::::::::::" << temp << std::endl;
-        data3.push_back(std::stof(temp));
-
-    recovering.param_a = data3[0];  
-    recovering.param_b = data3[1];
-    // these two variables would be overwritten by param_opt now
-
-    std::ifstream param_config(param_conf_dir_full);
-    std::vector<float> param_opt;
-    std::string gait;
-    std::string info;
-    int line_counter = 0;
-    while(std::getline(param_config, temp)){
-      if (line_counter == 0)
-        gait = temp;
-      else if (line_counter >= 1 && line_counter <= 9)
-        param_opt.push_back(std::stof(temp));
-      else
-        info = temp;
-      line_counter += 1;
-    }
-
-    if (gait == "line") recovering.gait = Recovering::Gait::line;
-    else if (gait == "sine") recovering.gait = Recovering::Gait::sine;
-    else if (gait == "rose") recovering.gait = Recovering::Gait::rose;
-    else if (gait == "triangle") recovering.gait = Recovering::Gait::triangle;
-    else if (gait == "none") recovering.gait = Recovering::Gait::none;
-    else std::cout << "WHAT THE F**K IS " << gait << " ???" << std::endl;
-
-    for (unsigned int i=0; i<recovering.param_opt.size(); i++)
-      recovering.param_opt[i] = param_opt[i];
+    // recovering.ad1 = data[12];
+    // recovering.ad2 = data[13];
 
 
-    std::cout << "[LOADER] LOADING WALKING CONFIGERATION " << param_conf_dir_full << " ..." << std::endl;
-    std::cout << "[LOADER] SUCCESSFULLY LOADED PARAMETERS FOR GAIT " << gait << " !" << std::endl;
-    std::cout << "[LOADER] PARAMETERS: [" ;
-    for (auto & p : param_opt)
-      std::cout << p << "  ";
-    std::cout << "]" << std::endl;
-    std::cout << "[LOADER] " << info << std::endl;
+    // std::ifstream bounding_config(bounding_conf_dir_full);
+    // std::vector<int> data2;
+    // while(std::getline(bounding_config, temp))
+    //     data2.push_back(std::stoi(temp));
 
-    std::ifstream climbing_config(climbing_conf_dir_full);
-    std::vector<float> data4;
-    while(std::getline(climbing_config, temp)){
-        // std::cout << "READ:::::::::::::::" << temp << std::endl;
-        data4.push_back(std::stof(temp));
-        recovering.X_climb.push_back(std::stof(temp));
-    }
+    // recovering.bound_length = data2[0];
 
-    std::cout << "[LOADER] LOADING CLIMBING CONFIGERATION " << climbing_conf_dir_full << " ..." << std::endl;
-    std::cout << "[LOADER] PARAMETERS: [" ;
-    for (auto & p : data4)
-      std::cout << p << "  ";
-    std::cout << "]" << std::endl;
+    // std::ifstream walking_config(walking_conf_dir_full);
+    // std::vector<float> data3;
+    // while(std::getline(walking_config, temp))
+    //     // std::cout << "READ:::::::::::::::" << temp << std::endl;
+    //     data3.push_back(std::stof(temp));
+
+    // recovering.param_a = data3[0];  
+    // recovering.param_b = data3[1];
+    // // these two variables would be overwritten by param_opt now
+
+    // std::ifstream param_config(param_conf_dir_full);
+    // std::vector<float> param_opt;
+    // std::string gait;
+    // std::string info;
+    // int line_counter = 0;
+    // while(std::getline(param_config, temp)){
+    //   if (line_counter == 0)
+    //     gait = temp;
+    //   else if (line_counter >= 1 && line_counter <= 9)
+    //     param_opt.push_back(std::stof(temp));
+    //   else
+    //     info = temp;
+    //   line_counter += 1;
+    // }
+
+    // if (gait == "line") recovering.gait = Recovering::Gait::line;
+    // else if (gait == "sine") recovering.gait = Recovering::Gait::sine;
+    // else if (gait == "rose") recovering.gait = Recovering::Gait::rose;
+    // else if (gait == "triangle") recovering.gait = Recovering::Gait::triangle;
+    // else if (gait == "none") recovering.gait = Recovering::Gait::none;
+    // else std::cout << "WHAT THE F**K IS " << gait << " ???" << std::endl;
+
+    // for (unsigned int i=0; i<recovering.param_opt.size(); i++)
+    //   recovering.param_opt[i] = param_opt[i];
+
+
+    // std::cout << "[LOADER] LOADING WALKING CONFIGERATION " << param_conf_dir_full << " ..." << std::endl;
+    // std::cout << "[LOADER] SUCCESSFULLY LOADED PARAMETERS FOR GAIT " << gait << " !" << std::endl;
+    // std::cout << "[LOADER] PARAMETERS: [" ;
+    // for (auto & p : param_opt)
+    //   std::cout << p << "  ";
+    // std::cout << "]" << std::endl;
+    // std::cout << "[LOADER] " << info << std::endl;
+
+    // std::ifstream climbing_config(climbing_conf_dir_full);
+    // std::vector<float> data4;
+    // while(std::getline(climbing_config, temp)){
+    //     // std::cout << "READ:::::::::::::::" << temp << std::endl;
+    //     data4.push_back(std::stof(temp));
+    //     recovering.X_climb.push_back(std::stof(temp));
+    // }
+
+    // std::cout << "[LOADER] LOADING CLIMBING CONFIGERATION " << climbing_conf_dir_full << " ..." << std::endl;
+    // std::cout << "[LOADER] PARAMETERS: [" ;
+    // for (auto & p : data4)
+    //   std::cout << p << "  ";
+    // std::cout << "]" << std::endl;
 
 
   }
+
+
 
   
 
