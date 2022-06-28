@@ -6,8 +6,10 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
-#include "tensorflow/c/c_api.h"
-#include "tf_utils_lite.hpp"
+// #include <torch/script.h> // One-stop header.
+// #include <memory>
+// #include "tensorflow/c/c_api.h"
+// #include "tf_utils_lite.hpp"
 #include <unistd.h>
 #include <sys/types.h>
 #include <pwd.h>
@@ -16,11 +18,13 @@
 #include <fstream>
 #include <glob.h>
 #include <cmath>
-#include "cnpy.h"
+// #include "cnpy.h"
 
 // #include <pybind11/embed.h>
 // #include <pybind11/stl.h>
 // namespace py = pybind11;
+#include <onnxruntime_c_api.h>
+
 #define DEBUG false
 
 #if DEBUG
@@ -236,6 +240,28 @@ class Recovering {
     std::vector<float> action_test = {0.6, -0.5, 0.7, 0.1};
     Vec3<float> pos_impl[4];
 
+   // Onnx model
+    void CheckOrtStatus(OrtStatus* status, const OrtApi* ortApi);
+    void PrintTensorInfo(std::string Type, size_t Idx, const char* Name, OrtTypeInfo* TypeInfo, const OrtApi* ortApi);
+    void LoadOnnxModel();
+    void OnnxInference();
+    void OnnxCleanup();
+    const OrtApi* pOrtApi = nullptr;
+    OrtEnv* pOnnxEnv = nullptr;
+    OrtSessionOptions* pOnnxSessionOpts;
+    OrtSession* pOnnxSession = nullptr;
+    OrtAllocator* pOnnxMemAllocator = nullptr;
+    OrtMemoryInfo* pOnnxMemAllocInfo = nullptr;
+    float pdData[48];
+    int64_t piShape[2] = {1,48};
+    OrtValue* pOnnxInput = nullptr;
+    OrtValue* pOnnxOutput = nullptr;
+    const char** psInputNames = nullptr;
+    const char** psOutputNames = nullptr;
+    size_t iNumInputs, iNumOutputs;
+    int iFlag;
+    float* pfOutputData = nullptr;
+
     void* _Test(void* args);
     void _Walk(const int & curr_iter);
     float _theta2_prime_hat(const float & th1_prime);
@@ -353,15 +379,15 @@ class Recovering {
 
     const int num_sub_steps = 10;
 
-    TF_Graph* graph;
-    TF_Status* status;
-    TF_SessionOptions* SessionOpts;
-    TF_Buffer* RunOpts;
-    TF_Session* sess;
-    TF_Tensor* input_tensor;
-    TF_Tensor* output_tensor;
-    TF_Output input_op;
-    TF_Output out_op;
+   //  TF_Graph* graph;
+   //  TF_Status* status;
+   //  TF_SessionOptions* SessionOpts;
+   //  TF_Buffer* RunOpts;
+   //  TF_Session* sess;
+   //  TF_Tensor* input_tensor;
+   //  TF_Tensor* output_tensor;
+   //  TF_Output input_op;
+   //  TF_Output out_op;
 
     float ad_right_min, ad_right_max, ad_left_min, ad_left_max;
 

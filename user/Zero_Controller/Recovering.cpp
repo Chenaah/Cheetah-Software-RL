@@ -40,6 +40,11 @@ Recovering::Recovering(){
 
     a_dim = 12;
     s_dim = 48;
+
+    LoadOnnxModel();
+
+    // std::cout << "0 !!!!!!!!!!!!!!!!!!!!!! HERE I AM. " << std::endl;
+
     
     //********* Read model
     // CHANGE TO LOAD PYTORCH MODEL !
@@ -154,7 +159,6 @@ void Recovering::runtest() {
           _Passive();
           break;
       case 0:
-          std::cout << "---SHIT"<< std::endl;
           _done = false;
           _FoldLegs(_state_iter - _motion_start_iter);  // _motion_start_iter = _state_iter + 1;
           break;
@@ -532,39 +536,50 @@ void Recovering::_FoldLegs(const int & curr_iter){
 
 void Recovering::_JustStandUp(const int & curr_iter){
 
-    std::cout<< "STAND UP STEP: NO." << curr_iter <<std::endl;
-    // std::cout<< "[1] STAND UP INI: " << initial_jpos[0][0] <<", "<< initial_jpos[0][1] <<", "<<  initial_jpos[0][2] << std::endl;
-    // std::cout<< "[2] NOW: " << this->_legController->datas[0].q[0] <<", "<< this->_legController->datas[0].q[1] <<", "<<  this->_legController->datas[0].q[2] << std::endl;
-    // std::cout<< "[3] STAND UP FIN: " << stand_jpos[0][0] <<", "<< stand_jpos[0][1] << ", "<< stand_jpos[0][2] << std::endl;
-
     if (curr_iter==0){
         for(size_t i(0); i < 4; ++i)
             initial_jpos[i] = this->_legController->datas[i].q;
-        stand_jpos[0] << 0.f, stand_front_hip + front_hip_offset, stand_front_knee;
-        stand_jpos[1] << 0.f, stand_front_hip + front_hip_offset, stand_front_knee;
-        stand_jpos[2] << 0.f, stand_back_hip + back_hip_offset, stand_back_knee;
-        stand_jpos[3] << 0.f, stand_back_hip + back_hip_offset, stand_back_knee;
+        // default_joint_angles
+        stand_jpos[1] << 0.1f, -0.8f + front_hip_offset, 1.5f;  // FL
+        stand_jpos[3] << 0.1f, -1.f + back_hip_offset, 1.5f;  // RL
+        stand_jpos[0] << -0.1f, -0.8f + front_hip_offset, 1.5f;  // FR
+        stand_jpos[2] << -0.1f, -1.f + back_hip_offset, 1.5f;  // RR
+
+        // torch::jit::script::Module module;
+        // try {
+        //     // Deserialize the ScriptModule from a file using torch::jit::load().
+        //     module = torch::jit::load("policy.pt");
+        // }
+        // catch (const c10::Error& e) {
+        //     std::cerr << "[PYTORCH] error loading the model\n";
+        // }
+
+        // std::cout << "[PYTORCH] SUCCESS!!!!!!!!!!!!!!!!\n";
+
+
     }
+
+    for (size_t idx = 0; idx < 48; idx++)
+        pdData[idx] = 1.0f;
+
+    t_start = std::chrono::high_resolution_clock::now();
+
+    OnnxInference();
+
+    t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
+
+
 
     for(size_t leg(0); leg<4; ++leg){
         _SetJPosInterPts(curr_iter, standup_ramp_iter, 
                          leg, initial_jpos[leg], stand_jpos[leg]);
     }       
-    // feed forward mass of robot.
-    //for(int i = 0; i < 4; i++)
-    //this->_data->_legController->commands[i].forceFeedForward = f_ff;
-    //Vec4<T> se_contactState(0.,0.,0.,0.);
-    Vec4<float> se_contactState(0.5,0.5,0.5,0.5);
-    this->_stateEstimator->setContactPhase(se_contactState);
 
     if(curr_iter >= standup_ramp_iter+10000000){
         // std::cout<< "====================== STAND UP FINISHED! ======================" << curr_iter <<std::endl;
-        if (pre1_enable)
-            _phase = 2;
-        else
-            _phase = 3;
-
-        // _phase = 0; // JUST FOR TEST
+        _phase = -3;
         _motion_start_iter = _state_iter+1;
     } 
 
@@ -899,42 +914,42 @@ void Recovering::_update_state(){
 
 void Recovering::_update_action(){
 
-    // std::shuffle(action_test.begin(), action_test.end(), std::default_random_engine(233));
-    // action = action_test;
-    std::cout << "[AGENT] STATE: ";
-    for(int i=0; i<s_dim; i++){
-        std::cout << state[i];
-        if (i != s_dim-1)
-            std::cout << ", ";
-    }
-    std::cout << std::endl;
+    // // std::shuffle(action_test.begin(), action_test.end(), std::default_random_engine(233));
+    // // action = action_test;
+    // std::cout << "[AGENT] STATE: ";
+    // for(int i=0; i<s_dim; i++){
+    //     std::cout << state[i];
+    //     if (i != s_dim-1)
+    //         std::cout << ", ";
+    // }
+    // std::cout << std::endl;
     
 
-    std::memcpy(TF_TensorData(input_tensor), state.data(), std::min(state.size() * sizeof(float), TF_TensorByteSize(input_tensor)));
-    // printf("DATA WERE GIVEN TO THE TENSOR !!! \n");
+    // std::memcpy(TF_TensorData(input_tensor), state.data(), std::min(state.size() * sizeof(float), TF_TensorByteSize(input_tensor)));
+    // // printf("DATA WERE GIVEN TO THE TENSOR !!! \n");
 
-    // Run the Session
-    TF_SessionRun(sess, 
-                  nullptr, 
-                  &input_op, &input_tensor, 1,  // Input tensors, input tensor values, number of inputs.
-                  &out_op, &output_tensor, 1, // Output tensors, output tensor values, number of outputs.
-                  nullptr, 0,
-                  nullptr, 
-                  status);
+    // // Run the Session
+    // TF_SessionRun(sess, 
+    //               nullptr, 
+    //               &input_op, &input_tensor, 1,  // Input tensors, input tensor values, number of inputs.
+    //               &out_op, &output_tensor, 1, // Output tensors, output tensor values, number of outputs.
+    //               nullptr, 0,
+    //               nullptr, 
+    //               status);
     
-    // if(TF_GetCode(status) == TF_OK)
-    //   printf("Session is OK\n");
-    // else
-    //   printf("%s",TF_Message(status));
+    // // if(TF_GetCode(status) == TF_OK)
+    // //   printf("Session is OK\n");
+    // // else
+    // //   printf("%s",TF_Message(status));
 
-    auto data = static_cast<float*>(TF_TensorData(output_tensor));
-    // std::cout << "ACTION: " << data[0] << ", " << data[1] << ", " << data[2] << ", " << data[3] << std::endl;
-    for (int i=0; i<a_dim; i++){
-        if (progressing)
-            action[i] = data[i] * progressing_agent_factor;
-        else
-            action[i] = data[i] * agent_factor;
-    }
+    // auto data = static_cast<float*>(TF_TensorData(output_tensor));
+    // // std::cout << "ACTION: " << data[0] << ", " << data[1] << ", " << data[2] << ", " << data[3] << std::endl;
+    // for (int i=0; i<a_dim; i++){
+    //     if (progressing)
+    //         action[i] = data[i] * progressing_agent_factor;
+    //     else
+    //         action[i] = data[i] * agent_factor;
+    // }
 
     std::cout << "[AGENT] ACTION: ";
     for(int i=0; i<a_dim; i++){
@@ -1898,6 +1913,133 @@ bool Recovering::_within_limits(){
     }
 
     return true;
+}
+
+void Recovering::CheckOrtStatus(OrtStatus* status, const OrtApi* ortApi){
+    if (status != NULL) {
+        const char* sMsg = ortApi->GetErrorMessage(status);
+        std::cerr << "ONNX Runtime error: " << sMsg << std::endl;
+        ortApi->ReleaseStatus(status);
+        exit(1);
+    }
+}
+
+void Recovering::PrintTensorInfo(std::string Type, size_t Idx, const char* Name, OrtTypeInfo* TypeInfo, const OrtApi* ortApi)
+{
+    const OrtTensorTypeAndShapeInfo* pTensorInfo;
+    ONNXTensorElementDataType type;
+    size_t iNumDims;
+    std::vector<int64_t> NodeDims;
+
+    CheckOrtStatus(ortApi->CastTypeInfoToTensorInfo(TypeInfo, &pTensorInfo), ortApi);
+    CheckOrtStatus(ortApi->GetTensorElementType(pTensorInfo, &type), ortApi);
+    CheckOrtStatus(ortApi->GetDimensionsCount(pTensorInfo, &iNumDims), ortApi);
+    NodeDims.resize(iNumDims);
+    CheckOrtStatus(ortApi->GetDimensions(pTensorInfo, (int64_t*)NodeDims.data(), iNumDims), ortApi);
+    std::cout << "- " << Type << " " << Idx << ": name=" << Name << ", type=" << type << ", ndim=" << iNumDims << ", shape=[";
+    for (size_t dimIdx = 0; dimIdx < iNumDims; dimIdx++)
+    {
+        std::cout << NodeDims[dimIdx] << ((dimIdx >= iNumDims-1)?"":",");
+    }
+    std::cout << "]" << std::endl;
+}
+
+void Recovering::LoadOnnxModel(){
+    
+    pOrtApi = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+
+    CheckOrtStatus(pOrtApi->CreateEnv(OrtLoggingLevel::ORT_LOGGING_LEVEL_VERBOSE, "onnx.log", &pOnnxEnv), pOrtApi);
+    assert(pOnnxEnv != NULL);
+    std::cout << "ONNX environment created successfully." << std::endl;
+
+    CheckOrtStatus(pOrtApi->CreateSessionOptions(&pOnnxSessionOpts), pOrtApi);
+    CheckOrtStatus(pOrtApi->SetSessionGraphOptimizationLevel(pOnnxSessionOpts, ORT_ENABLE_ALL), pOrtApi);
+
+    // Create a session from the saved model using default settings, so it'll run on the CPU.
+
+    const char* sModelName = "./data/policy_1.onnx";
+
+    CheckOrtStatus(pOrtApi->CreateSession(pOnnxEnv, sModelName, pOnnxSessionOpts, &pOnnxSession), pOrtApi);
+    assert(pOnnxSession != NULL);
+    std::cout << "ONNX session create successfully." << std::endl;
+
+    // Print info about the inputs and outputs of the model.
+    // Shouldd be one input and one output, both having dimensions of [-1,10] and data type equal to 1 (float).
+    CheckOrtStatus(pOrtApi->SessionGetInputCount(pOnnxSession, &iNumInputs), pOrtApi);
+    std::cout << "Model has " << iNumInputs << " input(s)." << std::endl;
+    CheckOrtStatus(pOrtApi->GetAllocatorWithDefaultOptions(&pOnnxMemAllocator), pOrtApi);
+    psInputNames = new const char*[iNumInputs]; // You need to keep track of the names of the inputs to the network so you can specify multiple inputs when runningt the network, if it has multiple inputs.
+    for (size_t inIdx = 0; inIdx < iNumInputs; inIdx++)
+    {
+        char* sName;
+        OrtTypeInfo* pTypeinfo;
+        CheckOrtStatus(pOrtApi->SessionGetInputName(pOnnxSession, inIdx, pOnnxMemAllocator, &sName), pOrtApi);
+        CheckOrtStatus(pOrtApi->SessionGetInputTypeInfo(pOnnxSession, inIdx, &pTypeinfo), pOrtApi);
+        psInputNames[inIdx] = sName;
+        PrintTensorInfo("Input", inIdx, sName, pTypeinfo, pOrtApi);
+        pOrtApi->ReleaseTypeInfo(pTypeinfo);
+    }
+    CheckOrtStatus(pOrtApi->SessionGetOutputCount(pOnnxSession, &iNumOutputs), pOrtApi);
+    std::cout << "Model has " << iNumOutputs << " output(s)." << std::endl;
+    psOutputNames = new const char*[iNumOutputs]; // Also need to get the name of the network's output so that one can tell the runtime which outputs to calculate.
+    for (size_t outIdx = 0; outIdx < iNumOutputs; outIdx++)
+    {
+        char* sName;
+        OrtTypeInfo* pTypeinfo;
+        CheckOrtStatus(pOrtApi->SessionGetOutputName(pOnnxSession, outIdx, pOnnxMemAllocator, &sName), pOrtApi);
+        CheckOrtStatus(pOrtApi->SessionGetOutputTypeInfo(pOnnxSession, outIdx, &pTypeinfo), pOrtApi);
+        psOutputNames[outIdx] = sName;
+        PrintTensorInfo("Output", outIdx, sName, pTypeinfo, pOrtApi);
+        pOrtApi->ReleaseTypeInfo(pTypeinfo);
+    }
+
+    
+}
+
+void Recovering::OnnxInference(){
+    // for (size_t idx = 0; idx < 48; idx++)
+    //     pdData[idx] = 1.0f;
+
+    // Create the input tensor and fill it with data.
+    CheckOrtStatus(pOrtApi->CreateCpuMemoryInfo(OrtAllocatorType::OrtDeviceAllocator, OrtMemType::OrtMemTypeDefault, &pOnnxMemAllocInfo), pOrtApi);
+    std::cout << "Created CPU memory allocator." << std::endl;
+    CheckOrtStatus(pOrtApi->CreateTensorWithDataAsOrtValue(pOnnxMemAllocInfo, pdData, sizeof(float) * 48, piShape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &pOnnxInput), pOrtApi);
+    assert(pOnnxInput != NULL);
+    CheckOrtStatus(pOrtApi->IsTensor(pOnnxInput, &iFlag), pOrtApi);
+    assert(iFlag);
+    std::cout << "Allocated input tensor." << std::endl;
+
+    // Finally execute the neural network.
+    CheckOrtStatus(pOrtApi->Run(pOnnxSession, NULL, (const char* const*)psInputNames, (const OrtValue* const*)&pOnnxInput, 1, (const char* const*)psOutputNames, 1, &pOnnxOutput), pOrtApi);
+
+    CheckOrtStatus(pOrtApi->GetTensorMutableData(pOnnxOutput, (void**)&pfOutputData), pOrtApi);
+    std::cout << "Output tensor: [";
+    for (size_t idx = 0; idx < 12; idx++)
+        std::cout << pfOutputData[idx] << ((idx==12-1)?"":",");
+    std::cout << "]" << std::endl;
+
+    // std::cout << "Verifying results: ";
+    // bool bSuccess = true;
+    // for (size_t idx = 0; idx < 12; idx++)
+    // {
+    //     bSuccess &= pfOutputData[idx] == 561.0;
+    // }
+    // std::cout << (bSuccess?"PASS":"FAIL") << std::endl;
+
+
+}
+
+void Recovering::OnnxCleanup(){
+    // Cleanup time.
+    delete psInputNames;
+    delete psOutputNames;
+    pOrtApi->ReleaseValue(pOnnxInput);
+    pOrtApi->ReleaseValue(pOnnxOutput);
+    pOrtApi->ReleaseMemoryInfo(pOnnxMemAllocInfo);
+    // pOrtApi->ReleaseAllocator(pOnnxMemAllocator);
+    // OrtReleaseSession(pOnnxSession);
+    pOrtApi->ReleaseEnv(pOnnxEnv);
+    std::cout << "ONNX Runtime variables released." << std::endl;
 }
 
 #if DEBUG

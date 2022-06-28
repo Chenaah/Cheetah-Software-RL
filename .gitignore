@@ -30,4 +30,3 @@ documentation/doxygen/latex
 tags
 .vscode/
 third-party/pybind11
-third-party/libtorch
