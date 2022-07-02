@@ -131,6 +131,8 @@ class Recovering {
 
     std::vector<float> X_climb;
 
+    const bool verbose = true;
+
  private:
     // Keep track of the control iterations
     int iter = 0;
@@ -231,7 +233,9 @@ class Recovering {
 
     void _update_state();
     void _update_state_buffer();
+    void _update_observation();
     std::vector<float> state;
+    std::vector<float> observation;
     std::vector<float> action;
     int a_dim = 0;  // this will set automatically by action_mode and leg_action_mode  none: 4, parameter/parallel_offset/hips_offset/knees_offset: 6, hips_knees_offset:8
     int s_dim = 0;  // this will set automatically by state_mode  body_arm: 10, body_arm_p: 12, body_arm_leg_full: 14
@@ -261,6 +265,18 @@ class Recovering {
     size_t iNumInputs, iNumOutputs;
     int iFlag;
     float* pfOutputData = nullptr;
+    Eigen::Vector3d quat_rotate_inverse(Eigen::Vector4d &q, Eigen::Vector3d &v);
+    Eigen::Vector3d gravity_vec = {0, 0, -1};
+    Eigen::Vector4d base_quat;
+    Eigen::Vector3d projected_gravity;
+    const std::vector<float> default_dof_pos = {0.1, 0.8, -1.5, -0.1, 0.8, -1.5, 0.1, 1.0, -1.5, -0.1, 1.0, -1.5};
+    const float lin_vel_scale = 2.;
+    const float ang_vel_scale = 0.25;
+    const float dof_pos_scale = 1.;
+    const float dof_vel_scale = 0.05;
+    const float clip_obs = 100;
+    const float action_scale = 0.25;
+    void joint_pos_clip();
 
     void* _Test(void* args);
     void _Walk(const int & curr_iter);
@@ -433,8 +449,8 @@ class Recovering {
     int rc_mode = 0;
 
     float progressing_agent_factor = 0;
-    std::vector<std::vector<float>> body_state_buffer;
-    std::vector<float> body_state_sum = std::vector<float>(6, 0);
+    std::vector<std::vector<float>> state_buffer;
+    std::vector<float> state_sum;
 
     // reward calculator
     float reward = 0.0;
@@ -498,7 +514,7 @@ class Recovering {
 
     const unsigned int error_buffer_size = 15;
     const float arm_pd_multiplier = 1.0;
-    const unsigned int state_buffer_size = 10;
+    const unsigned int state_buffer_size = 20; //10;
     const int additional_step = 10;  // FOR DEBUGGING
 
     const float fix_leg7 =  0;
@@ -526,6 +542,9 @@ class Recovering {
    //  const float arm_pd_multiplier = 0.0;
 
    //  #endif
+
+   void wait_for_agent_action();
+   void send_state_to_agent();
 
     // Debugging
     #if DEBUG

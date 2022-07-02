@@ -116,6 +116,8 @@ Recovering::Recovering(){
 
     action.resize(a_dim);
     state.resize(s_dim);
+    observation.resize(s_dim);
+    state_sum = std::vector<float>(s_dim, 0);
 
     leg_offsets << 0.f, 0.f, 0.f, 0.f;
     for (int leg = 0; leg < 4; leg++)
@@ -126,6 +128,16 @@ Recovering::Recovering(){
     #endif
 
     // std::cout << std::setprecision(6) << std::fixed;
+
+
+    // TESTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+    // std::cout << "=================== TEST =================" << std::endl;
+    // Eigen::Vector4d test4d; test4d << 1, -2, 3, 4;
+    // Eigen::Vector3d test3d; test3d << 5,-6,997;
+    // Eigen::Vector3d testresult;
+    // testresult = quat_rotate_inverse(test4d, test3d);
+    // std::cout << testresult << std::endl;
+    // std::cout << "=================== TEST =================" << std::endl;
 
 
 
@@ -144,7 +156,7 @@ void Recovering::runtest() {
     //   _phase = -1;
     //   std::cout << "SAFE CHECK FAIL! " << std::endl;
     // }
-    std::cout << "PHASE: " << _phase << std::endl;
+    // std::cout << "PHASE: " << _phase << std::endl;
 
 
     #if DEBUG
@@ -539,47 +551,23 @@ void Recovering::_JustStandUp(const int & curr_iter){
     if (curr_iter==0){
         for(size_t i(0); i < 4; ++i)
             initial_jpos[i] = this->_legController->datas[i].q;
-        // default_joint_angles
-        stand_jpos[1] << 0.1f, -0.8f + front_hip_offset, 1.5f;  // FL
-        stand_jpos[3] << 0.1f, -1.f + back_hip_offset, 1.5f;  // RL
-        stand_jpos[0] << -0.1f, -0.8f + front_hip_offset, 1.5f;  // FR
-        stand_jpos[2] << -0.1f, -1.f + back_hip_offset, 1.5f;  // RR
 
-        // torch::jit::script::Module module;
-        // try {
-        //     // Deserialize the ScriptModule from a file using torch::jit::load().
-        //     module = torch::jit::load("policy.pt");
-        // }
-        // catch (const c10::Error& e) {
-        //     std::cerr << "[PYTORCH] error loading the model\n";
-        // }
-
-        // std::cout << "[PYTORCH] SUCCESS!!!!!!!!!!!!!!!!\n";
-
+        stand_jpos[1] << default_dof_pos[0], -(default_dof_pos[1] + front_hip_offset), -default_dof_pos[2];  // FL
+        stand_jpos[0] << default_dof_pos[3], -(default_dof_pos[4] + front_hip_offset), -default_dof_pos[5];  // FR
+        stand_jpos[3] << default_dof_pos[6], -(default_dof_pos[7] + front_hip_offset), -default_dof_pos[8];  // RL
+        stand_jpos[2] << default_dof_pos[9], -(default_dof_pos[10] + front_hip_offset), -default_dof_pos[11];  // RR
 
     }
 
-    for (size_t idx = 0; idx < 48; idx++)
-        pdData[idx] = 1.0f;
-
-    t_start = std::chrono::high_resolution_clock::now();
-
-    OnnxInference();
-
-    t_end = std::chrono::high_resolution_clock::now();
-    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-    std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
-
-
+    // _update_state();
 
     for(size_t leg(0); leg<4; ++leg){
         _SetJPosInterPts(curr_iter, standup_ramp_iter, 
                          leg, initial_jpos[leg], stand_jpos[leg]);
     }       
 
-    if(curr_iter >= standup_ramp_iter+10000000){
-        // std::cout<< "====================== STAND UP FINISHED! ======================" << curr_iter <<std::endl;
-        _phase = -3;
+    if(curr_iter >= standup_ramp_iter+100){
+        _phase = 5;
         _motion_start_iter = _state_iter+1;
     } 
 
@@ -639,47 +627,42 @@ void Recovering::_Walk(const int & curr_iter){
     std::cout << "[DEBUG] SUB STEP " << curr_iter << "\n";
     #endif
 
-    // if (curr_iter == 0){
-    //     t_start = std::chrono::high_resolution_clock::now();
-    // }
-
-    // t_end = std::chrono::high_resolution_clock::now();
-    // double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-    // std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
-    // t_start = t_end;
-
-
-    // #if !DEBUG
-    for(size_t i(0); i < 4; ++i) {
-      initial_jpos[i] = this->_legController->datas[i].q;
+    if (curr_iter == 0){
+        std::cout << "[WALKING] INITIAL STATE: [" << state[0] << ", " << state[1] << ", " << state[2] << ", " << state[3] << ", " << state[4] << ", " << state[5] << ", " << state[6] << ", " << state[7] << ", " << state[8] << ", " << state[9] << ", " << state[10] << ", " << state[11] << ", " << state[12] << ", " << state[13] << "]" << std::endl;
+        // std::cout << "QUAT: [" << bullet_orientation[0] << ", " << bullet_orientation[1] << ", "<< bullet_orientation[2] << ", "<< bullet_orientation[3] << "]" << std::endl;
     }
-    // #else
-    // // TODO: THIS ONLY WORKS FOR 14-DIM STATE
-    // initial_jpos[0] << state_from_bullet[6], state_from_bullet[7], _theta2_prime_hat(state_from_bullet[7]);
-    // initial_jpos[1] << state_from_bullet[8], state_from_bullet[9], _theta2_prime_hat(state_from_bullet[9]);
-    // initial_jpos[2] << 0.f, state_from_bullet[10], _theta2_prime_hat(state_from_bullet[11]);
-    // initial_jpos[2] << 0.f, state_from_bullet[12], _theta2_prime_hat(state_from_bullet[13]);
-    // #endif
 
-    for(size_t i(0); i < 2; ++i)
-        initial_jpos[i] = initial_jpos[i] - front_offset;
-    for(size_t i(2); i < 4; ++i)
-        initial_jpos[i] = initial_jpos[i] - back_offset;
-    
-    // _update_state_buffer();
+    _update_state();
+    _update_state_buffer();
     
     if (curr_iter % num_sub_steps == 0){
-        if (curr_iter == 0){
-            std::cout << "[WALKING] FIRST STATE: [" << state[0] << ", " << state[1] << ", " << state[2] << ", " << state[3] << ", " << state[4] << ", " << state[5] << ", " << state[6] << ", " << state[7] << ", " << state[8] << ", " << state[9] << ", " << state[10] << ", " << state[11] << ", " << state[12] << ", " << state[13] << "]" << std::endl;
-            // std::cout << "QUAT: [" << bullet_orientation[0] << ", " << bullet_orientation[1] << ", "<< bullet_orientation[2] << ", "<< bullet_orientation[3] << "]" << std::endl;
         
-        }
-        _update_state();
+        for(size_t i(0); i < 4; ++i)
+            initial_jpos[i] = this->_legController->datas[i].q;
+        for(size_t i(0); i < 2; ++i)
+            initial_jpos[i] = initial_jpos[i] - front_offset;
+        for(size_t i(2); i < 4; ++i)
+            initial_jpos[i] = initial_jpos[i] - back_offset;
 
-        if (curr_iter != 0 && !_done && curr_iter <= 10000)
-            _update_reward();
-        else if (curr_iter != 0)
-            _log_return();
+        // _update_state();
+        _update_observation();
+
+        if (verbose){
+            std::cout << std::endl << "============================================================================" << std::endl << std::endl;
+            std::cout << "[AGENT] STATE: ";
+            for(int i=0; i<s_dim; i++){
+                std::cout << state[i];
+                if (i != s_dim-1)
+                    std::cout << ", ";
+            }
+            std::cout << std::endl << std::endl;
+        }
+
+
+        // if (curr_iter != 0 && !_done && curr_iter <= 10000)
+        //     _update_reward();
+        // else if (curr_iter != 0)
+        //     _log_return();
         
         #if DEBUG
         // debug_info_stream << "STATE: [" << state[0] << ", " << state[1] << ", " << state[2] << ", " << state[3] << ", " << state[4] << ", " << state[5] << ", \n        " << 
@@ -688,6 +671,16 @@ void Recovering::_Walk(const int & curr_iter){
         #endif
         
         _update_action();
+
+        if (verbose){
+            std::cout << "[AGENT] ACTION: ";
+            for(int i=0; i<a_dim; i++){
+                std::cout << action[i];
+                if (i != a_dim-1)
+                    std::cout << ", ";
+            }
+            std::cout << std::endl << std::endl;
+        }
 
         
         #if DEBUG
@@ -698,17 +691,51 @@ void Recovering::_Walk(const int & curr_iter){
 
     }
 
+    pos_impl[1] << action[0]*action_scale + default_dof_pos[0], -(action[1]*action_scale + default_dof_pos[1]), -(action[2]*action_scale + default_dof_pos[2]);
+    pos_impl[0] << action[3]*action_scale + default_dof_pos[3], -(action[4]*action_scale + default_dof_pos[4]), -(action[5]*action_scale + default_dof_pos[5]);
+    pos_impl[3] << action[6]*action_scale + default_dof_pos[6], -(action[7]*action_scale + default_dof_pos[7]), -(action[8]*action_scale + default_dof_pos[8]);
+    pos_impl[2] << action[9]*action_scale + default_dof_pos[9], -(action[10]*action_scale + default_dof_pos[10]), -(action[11]*action_scale + default_dof_pos[11]);
 
-    assert((unsigned int)pos_impl[2][0] == 0 && (unsigned int)pos_impl[3][0] == 0);
+    if (verbose){
+        std::cout << "[CONTROL] JOINT BEFORE CLIPPING: [";
+        for(int i=0; i<4; i++){
+            for(int j=0; j<3; j++){
+                std::cout << pos_impl[i][j];
+                // if (i != 3 && j != 2)
+                std::cout << ", ";
+            }
+        }
+        std::cout << "]" << std::endl << std::endl;
+    }
+
+    joint_pos_clip();
+    // pos_impl[0][0] = 0;
+    // pos_impl[1][0] = 0;
+    // pos_impl[2][0] = 0;
+    // pos_impl[3][0] = 0;
+    // assert((unsigned int)pos_impl[2][0] == 0 && (unsigned int)pos_impl[3][0] == 0);
+    // std::cout << "[CONTROL] FINAL ABAD: [" <<  pos_impl[0][0] << ", " <<  pos_impl[1][0] << ", " <<  pos_impl[2][0] << ", "<<  pos_impl[3][0] << "] " << std::endl;
+
+    if (verbose){
+        std::cout << "[CONTROL] JOINT AFTER CLIPPING: [";
+        for(int i=0; i<4; i++){
+            for(int j=0; j<3; j++){
+                std::cout << pos_impl[i][j];
+                // if (i != 3 && j != 2)
+                std::cout << ", ";
+            }
+        }
+        std::cout << "]" << std::endl << std::endl;
+    }
 
     for (size_t leg(0); leg<4; ++leg)
         for (size_t j(0); j<3; ++j)
             assert(!std::isnan(pos_impl[leg][j]));
 
-    if (curr_iter % 50){
-        std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[1][0] << ", "<<  pos_impl[1][1] << "] " << std::endl;
-        std::cout << "[CONTROL] FINAL LEG ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << std::endl;
-    }
+    // if (curr_iter % 50){
+    //     std::cout << "[CONTROL] FINAL ARM ACTION (OBJ): [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[1][0] << ", "<<  pos_impl[1][1] << "] " << std::endl;
+    //     std::cout << "[CONTROL] FINAL LEG ACTION: [" <<  pos_impl[2][1] << ", " <<  pos_impl[2][2] << ", " <<  pos_impl[3][1] << ", "<<  pos_impl[3][2] << "] " << std::endl;
+    // }
 
 
     #if DEBUG
@@ -718,14 +745,10 @@ void Recovering::_Walk(const int & curr_iter){
     #endif
 
     if (_within_limits()){  // SECURITY CHECK:
+    // if (true){  // SECURITY CHECK:
 
-        for(size_t leg(0); leg<2; ++leg){
+        for(size_t leg(0); leg<4; ++leg){
             _Step(curr_iter, 9, 
-            leg, initial_jpos[leg], pos_impl[leg]);
-        }
-
-        for(size_t leg(2); leg<4; ++leg){
-            _Step(curr_iter, 0, 
             leg, initial_jpos[leg], pos_impl[leg]);
         }
 
@@ -779,140 +802,97 @@ bool Recovering::_has_stopped(){
 
 void Recovering::_update_state(){
 
-    if (agent_ver == 2 || state_mode == StateMode::h_body_arm_p){
-        state[0] = _stateEstimator->getResult().position[2];  // position z of torso
-        state[1] = _stateEstimator->getResult().orientation[1];  // orientation x of torso
-        state[2] = _stateEstimator->getResult().orientation[2];  // orientation y of torso
-        state[3] = _stateEstimator->getResult().orientation[3];  // orientation z of torso
-        state[4] = _stateEstimator->getResult().orientation[0];  // orientation w of torso
-        state[5] = _stateEstimator->getResult().omegaBody[0];  // angular velocity r of torso   //TODO: THIS MAY NOT RIGHT
-        state[6] = _stateEstimator->getResult().omegaBody[1];  // angular velocity p of torso
-        state[7] = _stateEstimator->getResult().omegaBody[2];  // angular velocity y of torso
-        state[8] = _legController->datas[0].q[0];  // joint position
-        state[9] = _legController->datas[0].q[1] - front_hip_offset;  // joint position
-        state[10] = _legController->datas[1].q[0];  // joint position
-        state[11] = _legController->datas[1].q[1] - front_hip_offset;  // joint position
-        state[12] = param_a;
-        state[13] = param_b;
-    } else if (state_mode == StateMode::body_arm_p){
-        assert(state.size() == 12);
-        _update_rpy();
-        state[0] = rpy[0];
-        state[1] = rpy[1];
-        state[2] = rpy[2];
-        state[3] = _stateEstimator->getResult().omegaWorld[0];  // angular velocity r of torso   //TODO: THIS MAY NOT RIGHT
-        state[4] = _stateEstimator->getResult().omegaWorld[1];  // angular velocity p of torso
-        state[5] = _stateEstimator->getResult().omegaWorld[2];  // angular velocity y of torso
-        state[6] = _legController->datas[0].q[0];  // joint position
-        state[7] = _legController->datas[0].q[1] - front_hip_offset;  // joint position
-        state[8] = _legController->datas[1].q[0];  // joint position
-        state[9] = _legController->datas[1].q[1] - front_hip_offset;  // joint position
-        state[10] = param_a;
-        state[11] = param_b;
-        std::cout << " PARAM A: " << param_a << " PARAM B: " << param_b << std::endl;
+    // FRONT
+    // 1 0  RIGHT
+    // 3 2
+    // BACK
 
-    } else if (state_mode == StateMode::body_arm){
-        assert(state.size() == 10);
-        _update_rpy();
-        state[0] = rpy[0];
-        state[1] = rpy[1];
-        state[2] = rpy[2];
-        state[3] = _stateEstimator->getResult().omegaWorld[0];  // angular velocity r of torso   //TODO: THIS MAY NOT RIGHT
-        state[4] = _stateEstimator->getResult().omegaWorld[1];  // angular velocity p of torso
-        state[5] = _stateEstimator->getResult().omegaWorld[2];  // angular velocity y of torso
-        state[6] = _legController->datas[0].q[0];  // joint position
-        state[7] = _legController->datas[0].q[1] - front_hip_offset;  // joint position
-        state[8] = _legController->datas[1].q[0];  // joint position
-        state[9] = _legController->datas[1].q[1] - front_hip_offset;  // joint position
+    // FL, FR, BL, BR --> 1, 0, 3, 2
 
-    } else if (state_mode == StateMode::body_arm_leg_full){
-        assert(state.size() == 14);
-        _update_rpy();
-        state[0] = rpy[0];
-        state[1] = rpy[1];
-        state[2] = rpy[2];
-        #if !DEBUG
-        state[3] = _stateEstimator->getResult().omegaWorld[0];  // angular velocity r of torso   //TODO: THIS MAY NOT RIGHT
-        state[4] = _stateEstimator->getResult().omegaWorld[1];  // angular velocity p of torso
-        state[5] = _stateEstimator->getResult().omegaWorld[2];  // angular velocity y of torso
-        state[6] = _legController->datas[0].q[0];  // joint position
-        state[7] = _legController->datas[0].q[1] - front_hip_offset;  // joint position
-        state[8] = _legController->datas[1].q[0];  // joint position
-        state[9] = _legController->datas[1].q[1] - front_hip_offset;  // joint position
-        state[10] = _legController->datas[2].q[1] - back_hip_offset;
-        state[11] = _legController->datas[2].q[2];
-        state[12] = _legController->datas[3].q[1] - back_hip_offset;
-        state[13] = _legController->datas[3].q[2];
-        #else
-        // state[3] = bullet_omegaWorld[0];
-        // state[4] = bullet_omegaWorld[1];
-        // state[5] = bullet_omegaWorld[2];
-        // state[6] = bullet_q[0];  // joint position
-        // state[7] = bullet_q[1] - front_hip_offset;  // joint position
-        // state[8] = bullet_q[3];  // joint position
-        // state[9] = bullet_q[4] - front_hip_offset;  // joint position
-        // state[10] = bullet_q[7] - back_hip_offset;
-        // state[11] = bullet_q[8];
-        // state[12] = bullet_q[10] - back_hip_offset;
-        // state[13] = bullet_q[11];
-        state[0] = state_from_bullet[0];
-        state[1] = state_from_bullet[1];
-        state[2] = state_from_bullet[2];
-        state[3] = state_from_bullet[3];
-        state[4] = state_from_bullet[4];
-        state[5] = state_from_bullet[5];
-        state[6] = state_from_bullet[6];  // joint position
-        state[7] = state_from_bullet[7] - front_hip_offset;  // joint position
-        state[8] = state_from_bullet[8];  // joint position
-        state[9] = state_from_bullet[9] - front_hip_offset;  // joint position
-        state[10] = state_from_bullet[10] - back_hip_offset;
-        state[11] = state_from_bullet[11];
-        state[12] = state_from_bullet[12] - back_hip_offset;
-        state[13] = state_from_bullet[13];
+    base_quat << _stateEstimator->getResult().orientation[1], 
+                 _stateEstimator->getResult().orientation[2], 
+                 _stateEstimator->getResult().orientation[3], 
+                 _stateEstimator->getResult().orientation[0];
+    projected_gravity = quat_rotate_inverse(base_quat, gravity_vec);
 
+    std::cout<< std::endl << "[DEBUG] X VELOCITY: " << _stateEstimator->getResult().vBody[0] << std::endl<< std::endl;
 
+    state[0] = (_stateEstimator->getResult().vBody[0]+ 0.2) * 2 * lin_vel_scale ;
+    state[1] = _stateEstimator->getResult().vBody[1] * lin_vel_scale;
+    state[2] = _stateEstimator->getResult().vBody[2] * lin_vel_scale;
 
-        #endif
-    } else if (state_mode == StateMode::body_arm_leg_full_filtered) {
+    state[3] = _stateEstimator->getResult().omegaBody[0] * ang_vel_scale;
+    state[4] = _stateEstimator->getResult().omegaBody[1] * ang_vel_scale;
+    state[5] = _stateEstimator->getResult().omegaBody[2] * ang_vel_scale;
 
-        assert(state.size() == 14);
-        for(int i=0; i<6; i++)
-            state[i] = body_state_sum[i] / body_state_buffer.size();
+    state[6] = projected_gravity[0];
+    state[7] = projected_gravity[1];
+    state[8] = projected_gravity[2];
 
+    state[9] = 0.5*2;
+    state[10] = 0*2;
+    state[11] = 0*0.25;
 
-    }
+    state[12] = (_legController->datas[1].q[0] - default_dof_pos[0])*dof_pos_scale;
+    state[13] = (-(_legController->datas[1].q[1]- front_hip_offset) - default_dof_pos[1])*dof_pos_scale;
+    state[14] = (-_legController->datas[1].q[2] - default_dof_pos[2])*dof_pos_scale;
+    state[15] = (_legController->datas[0].q[0] - default_dof_pos[3])*dof_pos_scale;
+    state[16] = (-(_legController->datas[0].q[1]- front_hip_offset) - default_dof_pos[4])*dof_pos_scale;
+    state[17] = (-_legController->datas[0].q[2] - default_dof_pos[5])*dof_pos_scale;
+    state[18] = (_legController->datas[3].q[0] - default_dof_pos[6])*dof_pos_scale;
+    state[19] = (-(_legController->datas[3].q[1] - back_hip_offset) - default_dof_pos[7])*dof_pos_scale;
+    state[20] = (-_legController->datas[3].q[2] - default_dof_pos[8])*dof_pos_scale;
+    state[21] = (_legController->datas[2].q[0] - default_dof_pos[9])*dof_pos_scale;
+    state[22] = (-(_legController->datas[2].q[1] - back_hip_offset) - default_dof_pos[10])*dof_pos_scale;
+    state[23] = (-_legController->datas[2].q[2] - default_dof_pos[11])*dof_pos_scale;
 
-    if (!fast_error_update){
+    state[24] = _legController->datas[1].v[0]*dof_vel_scale;
+    state[25] = -_legController->datas[1].v[1]*dof_vel_scale;
+    state[26] = -_legController->datas[1].v[2]*dof_vel_scale;
+    state[27] = _legController->datas[0].v[0]*dof_vel_scale;
+    state[28] = -_legController->datas[0].v[1]*dof_vel_scale;
+    state[29] = -_legController->datas[0].v[2]*dof_vel_scale;
+    state[30] = _legController->datas[3].v[0]*dof_vel_scale;
+    state[31] = -_legController->datas[3].v[1]*dof_vel_scale;
+    state[32] = -_legController->datas[3].v[2]*dof_vel_scale;
+    state[33] = _legController->datas[2].v[0]*dof_vel_scale;
+    state[34] = -_legController->datas[2].v[1]*dof_vel_scale;
+    state[35] = -_legController->datas[2].v[2]*dof_vel_scale;
 
-        d_error_buffer.push_back(_stateEstimator->getResult().omegaBody[1]);
-        d_error_sum += _stateEstimator->getResult().omegaBody[1];
-        if (d_error_buffer.size() > error_buffer_size){
-            d_error_sum -= d_error_buffer[0];
-            d_error_buffer.erase(d_error_buffer.begin());
-        } 
-        d_error = d_error_sum / d_error_buffer.size();
+    for(int i=0; i<12; i++)
+        state[36+i] = action[i];
 
-        p_error_buffer.push_back(state[1] - pitch_ref);
-        p_error_sum += state[1] - pitch_ref;
-        if (p_error_buffer.size() > error_buffer_size){
-            p_error_sum -= p_error_buffer[0];
-            p_error_buffer.erase(p_error_buffer.begin());
-        } 
-        p_error = p_error_sum / p_error_buffer.size();
+    // clipping
+    for(int i=0; i<48; i++)
+        state[i] = std::max(std::min(state[i], clip_obs), -clip_obs);
 
-        // std::cout << "P ERROR: " << p_error << "  D ERROR: " << d_error << std::endl;
-    }
+    // if(fabs(p_error) > 0.65){
+    //     _done = true;
+    //     std::cout << "[DONE] I AM DEAD !!!" << std::endl;
+    // }
 
+    
+    
 
-    if(fabs(p_error) > 0.65){
-        _done = true;
-        std::cout << "[DONE] I AM DEAD !!!" << std::endl;
-    }
     
 }
 
 
 void Recovering::_update_action(){
+
+    for (size_t idx = 0; idx < 48; idx++)
+        pdData[idx] = observation[idx];
+
+    t_start = std::chrono::high_resolution_clock::now();
+
+    OnnxInference();
+
+    t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
+
+    for (size_t idx = 0; idx < 12; idx++)
+        action[idx] = pfOutputData[idx];
 
     // // std::shuffle(action_test.begin(), action_test.end(), std::default_random_engine(233));
     // // action = action_test;
@@ -951,41 +931,39 @@ void Recovering::_update_action(){
     //         action[i] = data[i] * agent_factor;
     // }
 
-    std::cout << "[AGENT] ACTION: ";
-    for(int i=0; i<a_dim; i++){
-        std::cout << action[i];
-        if (i != a_dim-1)
-            std::cout << ", ";
-    }
-    std::cout << std::endl;
+    // std::cout << "[AGENT] ACTION: ";
+    // for(int i=0; i<a_dim; i++){
+    //     std::cout << action[i];
+    //     if (i != a_dim-1)
+    //         std::cout << ", ";
+    // }
+    // std::cout << std::endl;
 
     
 
 }
 
 void Recovering::_update_state_buffer(){
-
-    _update_rpy();
-    #if !DEBUG
-    std::vector<float> curr_state = {rpy[0], rpy[1], rpy[2], _stateEstimator->getResult().omegaWorld[0], _stateEstimator->getResult().omegaWorld[1], _stateEstimator->getResult().omegaWorld[2]};
-    #else
-    std::vector<float> curr_state = {rpy[0], rpy[1], rpy[2], bullet_omegaWorld[0], bullet_omegaWorld[1], bullet_omegaWorld[2]};
-    #endif
     
-    body_state_buffer.push_back(curr_state);
-    assert(body_state_sum.size() == curr_state.size());
-    for(unsigned int i=0; i < body_state_sum.size(); i++)
-        body_state_sum[i] += curr_state[i];
+    state_buffer.push_back(state);
+    assert(state_sum.size() == state.size());
+    for(unsigned int i=0; i < state_sum.size(); i++)
+        state_sum[i] += state[i];
 
-     if (body_state_buffer.size() > state_buffer_size){
-        for(unsigned int i=0; i < body_state_sum.size(); i++)
-            body_state_sum[i] -= body_state_buffer[0][i];
+    if (state_buffer.size() > state_buffer_size){
+        for(unsigned int i=0; i < state_sum.size(); i++)
+            state_sum[i] -= state_buffer[0][i];
 
-        body_state_buffer.erase(body_state_buffer.begin());
+        state_buffer.erase(state_buffer.begin());
     } 
 
 }
 
+void Recovering::_update_observation(){
+    // std::cout << "STATE BUFFER SIZE: " << state_buffer.size() << std::endl;
+    for(unsigned int i=0; i < state_sum.size(); i++)
+        observation[i] = state_sum[i] / state_buffer.size();
+}
 
 void Recovering::_Bound(const int & curr_iter){
 
@@ -1798,34 +1776,38 @@ void Recovering::_process_remote_controller_signal(const int & curr_iter){
     rc_mode = this->_desiredStateCommand->rcCommand->mode;
     // float rc_value = (this->_desiredStateCommand->rcCommand->v_des[0] + 0.7) / 2.1 *2 - 1 + 0.333333;  // -1 ~ 1
 
-    if (_phase == 11 && (rc_mode == 11 || rc_mode == 13)) {
-        // _phase = 12;
-        _phase = 1;
-        _motion_start_iter = _state_iter;
+    // if (_phase == 11 && (rc_mode == 11 || rc_mode == 13)) {
+    //     // _phase = 12;
+    //     _phase = 1;
+    //     _motion_start_iter = _state_iter;
 
-    } else if (_phase == 5 && (rc_mode == 11 || rc_mode == 13)){
-        // delta_x_buffer.push_back(param_opt[8] + 0.1*rc_value);
-        // delta_x_sum += param_opt[8] + 0.1*rc_value;
+    // } else {
+    //     _phase = -1;
+    // }
+    
+    // else if (_phase == 5 && (rc_mode == 11 || rc_mode == 13)){
+    //     // delta_x_buffer.push_back(param_opt[8] + 0.1*rc_value);
+    //     // delta_x_sum += param_opt[8] + 0.1*rc_value;
 
-        // if (delta_x_buffer.size() > 100){
-        //     delta_x_sum -= delta_x_buffer[0];
-        //     delta_x_buffer.erase(delta_x_buffer.begin());
-        // } 
-        // delta_x_buffered = delta_x_sum / delta_x_buffer.size();
+    //     // if (delta_x_buffer.size() > 100){
+    //     //     delta_x_sum -= delta_x_buffer[0];
+    //     //     delta_x_buffer.erase(delta_x_buffer.begin());
+    //     // } 
+    //     // delta_x_buffered = delta_x_sum / delta_x_buffer.size();
 
-        // std::cout << "BUFFERED DELTA: " << delta_x_buffered << std::endl;
+    //     // std::cout << "BUFFERED DELTA: " << delta_x_buffered << std::endl;
 
-        // param_b_buffered = std::min(std::max(param_opt[0] + rc_value*0.03f, B_range[0]), B_range[1]); 
-        // std::cout << "BUFFERED PARAM B: " << param_opt[0] << " + " << rc_value << " * 0.03 = " << param_b_buffered << std::endl;
+    //     // param_b_buffered = std::min(std::max(param_opt[0] + rc_value*0.03f, B_range[0]), B_range[1]); 
+    //     // std::cout << "BUFFERED PARAM B: " << param_opt[0] << " + " << rc_value << " * 0.03 = " << param_b_buffered << std::endl;
 
-        // NOTE THAT IN SOME CASES THIS WILL BE OVERWRITTEN 
-    } else if (_phase == 5 && rc_mode == 12) {
-        stopping = true;
+    //     // NOTE THAT IN SOME CASES THIS WILL BE OVERWRITTEN 
+    // } else if (_phase == 5 && rc_mode == 12) {
+    //     stopping = true;
 
-    } else if (_phase >= 6 && _phase < 10 && (rc_mode == 11 || rc_mode == 13)) {
-        _phase = -1;
+    // } else if (_phase >= 6 && _phase < 10 && (rc_mode == 11 || rc_mode == 13)) {
+    //     _phase = -1;
 
-    }
+    // }
 
     if (curr_iter % 500 == 0)
         std::cout << "[RC] PHASE: " << _phase << "  RC MODE: " << rc_mode << std::endl;
@@ -1957,7 +1939,8 @@ void Recovering::LoadOnnxModel(){
 
     // Create a session from the saved model using default settings, so it'll run on the CPU.
 
-    const char* sModelName = "./data/policy_1.onnx";
+    // const char* sModelName = "./data/policy_1.onnx";
+    const char* sModelName = "./data/a1_18nm_80kp.onnx";
 
     CheckOrtStatus(pOrtApi->CreateSession(pOnnxEnv, sModelName, pOnnxSessionOpts, &pOnnxSession), pOrtApi);
     assert(pOnnxSession != NULL);
@@ -1993,6 +1976,11 @@ void Recovering::LoadOnnxModel(){
         pOrtApi->ReleaseTypeInfo(pTypeinfo);
     }
 
+    // Create the input tensor and fill it with data.
+    CheckOrtStatus(pOrtApi->CreateCpuMemoryInfo(OrtAllocatorType::OrtDeviceAllocator, OrtMemType::OrtMemTypeDefault, &pOnnxMemAllocInfo), pOrtApi);
+    // std::cout << "Created CPU memory allocator." << std::endl;
+    CheckOrtStatus(pOrtApi->CreateTensorWithDataAsOrtValue(pOnnxMemAllocInfo, pdData, sizeof(float) * 48, piShape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &pOnnxInput), pOrtApi);
+
     
 }
 
@@ -2000,23 +1988,23 @@ void Recovering::OnnxInference(){
     // for (size_t idx = 0; idx < 48; idx++)
     //     pdData[idx] = 1.0f;
 
-    // Create the input tensor and fill it with data.
-    CheckOrtStatus(pOrtApi->CreateCpuMemoryInfo(OrtAllocatorType::OrtDeviceAllocator, OrtMemType::OrtMemTypeDefault, &pOnnxMemAllocInfo), pOrtApi);
-    std::cout << "Created CPU memory allocator." << std::endl;
-    CheckOrtStatus(pOrtApi->CreateTensorWithDataAsOrtValue(pOnnxMemAllocInfo, pdData, sizeof(float) * 48, piShape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &pOnnxInput), pOrtApi);
+    // // Create the input tensor and fill it with data.
+    // CheckOrtStatus(pOrtApi->CreateCpuMemoryInfo(OrtAllocatorType::OrtDeviceAllocator, OrtMemType::OrtMemTypeDefault, &pOnnxMemAllocInfo), pOrtApi);
+    // // std::cout << "Created CPU memory allocator." << std::endl;
+    // CheckOrtStatus(pOrtApi->CreateTensorWithDataAsOrtValue(pOnnxMemAllocInfo, pdData, sizeof(float) * 48, piShape, 2, ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT, &pOnnxInput), pOrtApi);
     assert(pOnnxInput != NULL);
     CheckOrtStatus(pOrtApi->IsTensor(pOnnxInput, &iFlag), pOrtApi);
     assert(iFlag);
-    std::cout << "Allocated input tensor." << std::endl;
+    // std::cout << "Allocated input tensor." << std::endl;
 
     // Finally execute the neural network.
     CheckOrtStatus(pOrtApi->Run(pOnnxSession, NULL, (const char* const*)psInputNames, (const OrtValue* const*)&pOnnxInput, 1, (const char* const*)psOutputNames, 1, &pOnnxOutput), pOrtApi);
 
     CheckOrtStatus(pOrtApi->GetTensorMutableData(pOnnxOutput, (void**)&pfOutputData), pOrtApi);
-    std::cout << "Output tensor: [";
-    for (size_t idx = 0; idx < 12; idx++)
-        std::cout << pfOutputData[idx] << ((idx==12-1)?"":",");
-    std::cout << "]" << std::endl;
+    // std::cout << "Output tensor: [";
+    // for (size_t idx = 0; idx < 12; idx++)
+    //     std::cout << pfOutputData[idx] << ((idx==12-1)?"":",");
+    // std::cout << "]" << std::endl;
 
     // std::cout << "Verifying results: ";
     // bool bSuccess = true;
@@ -2041,6 +2029,34 @@ void Recovering::OnnxCleanup(){
     pOrtApi->ReleaseEnv(pOnnxEnv);
     std::cout << "ONNX Runtime variables released." << std::endl;
 }
+
+Eigen::Vector3d Recovering::quat_rotate_inverse(Eigen::Vector4d &q, Eigen::Vector3d &v){
+    float q_w = q[3];
+    Eigen::Vector3d q_vec, a, b, c;
+    q_vec << q[0], q[1], q[2];
+    // a = v * (2.0 * q_w ** 2 - 1.0)
+    a = (2. * pow(q_w, 2) - 1.) * v;
+    // b = np.cross(q_vec, v) * q_w * 2.0
+    b = q_vec.cross(v) * q_w * 2.0;
+    // c = q_vec * np.matmul(q_vec.reshape(1, 3), v.reshape(3, 1)) * 2.0
+    c = q_vec * v.transpose() * 2. * q_vec;
+    // cwiseProduct
+    return a - b + c;
+}
+
+void Recovering::joint_pos_clip(){
+
+    for (size_t leg = 0; leg < 4; leg++){
+        pos_impl[leg][0] = std::min(std::max(pos_impl[leg][0], -0.802851455917f), 0.802851455917f);
+        pos_impl[leg][1] = std::min(std::max(pos_impl[leg][1], -4.18879020479f), 1.0471975512f);
+        // pos_impl[leg][2] = std::min(std::max(pos_impl[leg][2], 0.916297857297f), 2.69653369433f);
+        pos_impl[leg][2] = std::min(std::max(pos_impl[leg][2], 0.0f), 2.69653369433f);
+    }
+
+}
+
+
+
 
 #if DEBUG
 void Recovering::wait_for_simulation_state(){
