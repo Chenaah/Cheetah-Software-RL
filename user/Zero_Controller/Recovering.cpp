@@ -127,6 +127,13 @@ Recovering::Recovering(){
     socket.bind("tcp://*:5555");
     #endif
 
+
+    // open the connection
+    std::cout << "Connecting to hello world server…" << std::endl;
+    // socket.connect("tcp://localhost:4555");
+    socket.connect("tcp://10.0.0.3:4555");
+    // int request_nbr;
+
     // std::cout << std::setprecision(6) << std::fixed;
 
 
@@ -159,9 +166,9 @@ void Recovering::runtest() {
     // std::cout << "PHASE: " << _phase << std::endl;
 
 
-    #if DEBUG
-    wait_for_simulation_state();
-    #endif
+    // #if DEBUG
+    // wait_for_simulation_state();
+    // #endif
     _process_remote_controller_signal(_state_iter - _motion_start_iter);
 
 
@@ -670,7 +677,8 @@ void Recovering::_Walk(const int & curr_iter){
         //                                    state[10] << ", " << state[11] << ", " << state[12] << ", " << state[13] << "]" << std::endl;
         #endif
         
-        _update_action();
+        // _update_action();
+        _update_action_remote();
 
         if (verbose){
             std::cout << "[AGENT] ACTION: ";
@@ -744,6 +752,10 @@ void Recovering::_Walk(const int & curr_iter){
     std::cout << "[DEBUG] ARM FINAL ACTION: [" <<  pos_impl[0][0] << ", " <<  pos_impl[0][1] << ", " <<  pos_impl[1][0] << ", "<<  pos_impl[1][1] << "] " << "\n";
     #endif
 
+    // for(size_t leg(0); leg<4; ++leg){
+    //     pos_impl[leg][2] *= 1.05;
+    // }
+
     if (_within_limits()){  // SECURITY CHECK:
     // if (true){  // SECURITY CHECK:
 
@@ -751,6 +763,15 @@ void Recovering::_Walk(const int & curr_iter){
             _Step(curr_iter, 9, 
             leg, initial_jpos[leg], pos_impl[leg]);
         }
+
+        // TESTING BROKEN LEG !!!
+        // Mat3<float> kpMat_broken;
+        // Mat3<float> kdMat_broken;
+        // // if pos_impl[3][2] <
+        // kpMat_broken << 80, 0, 0, 0, 80, 0, 0, 0, 0;
+        // kdMat_broken << 10, 0, 0, 0, 10, 0, 0, 0, 0;
+        // _Step(curr_iter, 9, 
+        //     3, initial_jpos[3], pos_impl[3], kpMat_broken, kdMat_broken);
 
     } else {
 
@@ -817,7 +838,7 @@ void Recovering::_update_state(){
 
     std::cout<< std::endl << "[DEBUG] X VELOCITY: " << _stateEstimator->getResult().vBody[0] << std::endl<< std::endl;
 
-    state[0] = (_stateEstimator->getResult().vBody[0]+ 0.2) * 2 * lin_vel_scale ;
+    state[0] = (_stateEstimator->getResult().vBody[0]+ 0.2) * 1.5 * lin_vel_scale ;
     state[1] = _stateEstimator->getResult().vBody[1] * lin_vel_scale;
     state[2] = _stateEstimator->getResult().vBody[2] * lin_vel_scale;
 
@@ -940,6 +961,55 @@ void Recovering::_update_action(){
     // std::cout << std::endl;
 
     
+
+}
+
+void Recovering::_update_action_remote(){
+
+    t_start = std::chrono::high_resolution_clock::now();
+
+    std::ostringstream obs_to_agent;
+    // action_to_bullet << std::setprecision(4) << std::fixed;
+    for (int i=0; i<s_dim; i++)
+        obs_to_agent << observation[i] << ", ";
+
+    // send the request message
+    std::cout << "Sending State ..." << std::endl;
+    socket.send(zmq::buffer(obs_to_agent.str()), zmq::send_flags::none);
+    
+    // wait for reply from server
+    zmq::message_t reply{};
+    socket.recv(reply, zmq::recv_flags::none);
+
+    std::cout << "Received " << reply.to_string() << std::endl;
+
+
+
+    std::stringstream ss(reply.to_string());
+    int i_a = 0;
+    for (float i; ss >> i;) {
+        state_from_bullet.push_back(i);    
+        action[i_a] = i;
+        if (ss.peek() == ',' || ss.peek() == ' ')
+            ss.ignore();
+        i_a += 1;
+    }
+    // std::cout << "STATE DIMENSION IS "<< state_from_bullet.size() << std::endl;
+    assert(i_a == a_dim);
+
+
+    // for (size_t idx = 0; idx < 48; idx++)
+    //     pdData[idx] = observation[idx];
+
+
+    // OnnxInference();
+
+    t_end = std::chrono::high_resolution_clock::now();
+    double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    std::cout << "THE TIME PERIOD IS " <<  elapsed_time_ms << " /1000 SEC" << std::endl;
+
+    // for (size_t idx = 0; idx < 12; idx++)
+    //     action[idx] = pfOutputData[idx];
 
 }
 
@@ -2056,6 +2126,78 @@ void Recovering::joint_pos_clip(){
 }
 
 
+void Recovering::wait_for_simulation_state(){
+    // action_to_bullet << "[PHASE" << _phase << "] ";
+
+    // std::ostringstream action_to_bullet;
+    // std::cout << "SENDING....." << std::endl;
+    // socket.send(zmq::buffer(action_to_bullet.str()), zmq::send_flags::none);
+    // std::cout << "STATE DIMENSION IS "<< state_from_bullet.size() << std::endl;
+    // assert(int(state_from_bullet.size()) == s_dim);
+    const std::string data{"Hello"};
+
+    for (auto request_num = 0; request_num < 10; ++request_num) 
+    {
+        // send the request message
+        std::cout << "Sending Hello " << request_num << "..." << std::endl;
+        socket.send(zmq::buffer(data), zmq::send_flags::none);
+        
+        // wait for reply from server
+        zmq::message_t reply{};
+        socket.recv(reply, zmq::recv_flags::none);
+
+        std::cout << "Received " << reply.to_string(); 
+        std::cout << " (" << request_num << ")";
+        std::cout << std::endl;
+        
+    }
+
+
+    socket.send(zmq::buffer(data), zmq::send_flags::none);
+
+
+    // std::cout << "RECEIVING STATE......................" << std::endl;
+    // socket.recv(request, zmq::recv_flags::none);
+    // std::cout << "Received " << request.to_string() << std::endl;
+
+
+    // state_from_bullet.clear();
+
+    // std::stringstream ss(request.to_string());
+
+    // for (float i; ss >> i;) {
+    //     state_from_bullet.push_back(i);    
+    //     if (ss.peek() == ',' || ss.peek() == ' ')
+    //         ss.ignore();
+    // }
+
+    
+
+	// std::cout << "[DEBUG] RECEIVED JPOS[0][1]: " << state[7] << std::endl;
+
+
+}
+
+
+// void Recovering::send_action_to_simulator(){
+//     std::ostringstream action_to_bullet;
+//     if (_phase >= 0)
+//         action_to_bullet << "[PHASE" << _phase << "] ";
+//     else
+//         action_to_bullet << "[PHASE-] ";
+//     // action_to_bullet << std::setprecision(4) << std::fixed;
+//     for (int i=0; i<4; i++){
+//         for (int j=0; j<3; j++){
+//             action_to_bullet << this->_legController->commands[i].qDes[j];
+//             if (!(i==3 && j==2))
+//                 action_to_bullet << ", ";
+//         }
+//     }
+
+//     socket.send(zmq::buffer(action_to_bullet.str()), zmq::send_flags::none);
+//     // std::cout << "ACTION SENT TO BULLET: " << action_to_bullet.str() << std::endl;
+
+// }
 
 
 #if DEBUG

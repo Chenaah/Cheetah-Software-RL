@@ -35,6 +35,7 @@
 #include <fstream>
 #include <zmq.hpp>
 #endif
+#include <zmq.hpp>
 
 
 // Normal robot states
@@ -126,6 +127,7 @@ class Recovering {
     const float PI = 3.14159;
 
     void _update_action();
+    void _update_action_remote();
 
     char* DAM_path;
 
@@ -280,6 +282,7 @@ class Recovering {
 
     void* _Test(void* args);
     void _Walk(const int & curr_iter);
+    void _WalkRemote(const int & curr_iter);
     float _theta2_prime_hat(const float & th1_prime);
     float _theta1_hat(const float & th2);
     float _Box(const float & num, const float & min, const float & max);
@@ -547,10 +550,9 @@ class Recovering {
    void send_state_to_agent();
 
     // Debugging
-    #if DEBUG
-    lcm::LCM lcm;
-    void receive_state_from_bullet(const lcm::ReceiveBuffer* rbuf, const std::string& chan, const state_estimator_lcmt* msg);
-    void receive_leg_state_from_bullet(const lcm::ReceiveBuffer* rbuf, const std::string& chan, const leg_control_data_lcmt* msg);
+   //  #if DEBUG
+   //  void receive_state_from_bullet(const lcm::ReceiveBuffer* rbuf, const std::string& chan, const state_estimator_lcmt* msg);
+   //  void receive_leg_state_from_bullet(const lcm::ReceiveBuffer* rbuf, const std::string& chan, const leg_control_data_lcmt* msg);
 
     std::vector<float> bullet_omegaWorld = std::vector<float>(3, 0);
     std::vector<float> bullet_q = std::vector<float>(12, 0);
@@ -565,11 +567,13 @@ class Recovering {
     // initialize the zmq context with a single IO thread
     zmq::context_t context{1};
     // construct a REP (reply) socket and bind to interface
-    zmq::socket_t socket{context, zmq::socket_type::rep};
+   //  zmq::socket_t socket{context, zmq::socket_type::rep};
+    // construct a REQ (request) socket and connect to interface
+    zmq::socket_t socket{context, zmq::socket_type::req};
     std::vector<float> state_from_bullet;
     void wait_for_simulation_state();
     void send_action_to_simulator();
-    #endif
+   //  #endif
 
 
 
